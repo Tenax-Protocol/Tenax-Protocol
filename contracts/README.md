@@ -26,7 +26,7 @@ forge coverage                     # coverage report
 
 ```
 src/        contracts, grouped by area (token, escrow, forecast, ...)
-test/       unit/, fuzz/, invariant/, fork/, symbolic/
+test/       unit/, fuzz/, invariant/, fork/
 script/     deployment scripts
 ```
 
