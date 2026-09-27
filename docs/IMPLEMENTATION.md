@@ -12,7 +12,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 | Phase | Deliverable | Completion criteria |
 |---|---|---|
-| 0 | Whitepaper + simulations | Whitepaper reviewed and closed; simulation published and initial price range set |
+| 0 | Whitepaper + simulations | Whitepaper reviewed and closed; volatility backtest (done) and economic simulation published; initial price range and $T_{ETH}$ set |
 | 1 | TenaxToken + ERC-3009 | Unit and fuzz tests passing |
 | 2 | VotingEscrow | Slope/bias invariants, differential tests and Halmos; early exit (`withdrawEarly`, `grantedAmount`, penalty burn) |
 | 3 | OracleAdapter + ForecastRegistry + BrierMath | Fork tests; threshold and base rate updates; scoring, significance and aggregate invariants |
@@ -28,11 +28,17 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 ---
 
-## 2. Economic simulation (phase 0)
+## 2. Phase 0 models
 
-Model in `simulation/` with low, medium and high volume scenarios, covering ETH revenue per holder and per forecaster, cumulative burn, liquid supply and pool depth.
+### 2.1 Volatility backtest (done)
 
-**Required output:** the price range of the single-sided launch position (initial price and upper bound).
+`simulation/volatility_backtest.py` replays the forecasting rules on daily BTC and ETH prices from 2019 to 2026. The results, in [simulation/results/volatility_backtest.md](../simulation/results/volatility_backtest.md), set the skill definition, $\gamma$, $K$, the mean skill floor and the three-season eligibility window.
+
+### 2.2 Economic simulation
+
+Model in `simulation/` with low, medium and high volume scenarios, covering ETH revenue per holder and per forecaster, cumulative burn, buybacks, reserve usage, liquid supply and pool depth.
+
+**Required output:** the price range of the single-sided launch position (initial price and upper bound) and the initial revenue target $T_{ETH}$.
 
 ---
 
@@ -132,8 +138,8 @@ Model in `simulation/` with low, medium and high volume scenarios, covering ETH 
 | 4 | Upgrades | Immutable contracts, no proxies |
 | 5 | v1 questions | Volatility of BTC/USD and ETH/USD: will the absolute 24 h move exceed $X$? |
 | 6 | Round windows | 30 min submission / 24 h horizon (fixed) / 48 h reveal; one round per asset per day |
-| 7 | `minVe` and `K` | 1,000 veTENAX; K = 4 (weight from 1× to 2×); EMA α = 1/32; threshold and base rate EMAs with β = γ = 1/30 |
-| 8 | Season rewards | Linear in accumulated skill; eligible with ≥ 20 rounds and z ≥ 1.64 |
+| 7 | `minVe` and `K` | 1,000 veTENAX; K = 50 with weight capped at 2; EMA α = 1/32; threshold EMA β = 1/30, base rate EMA γ = 1/365 |
+| 8 | Season rewards | Linear in the season's skill; eligible with ≥ 20 rounds in the season, and z ≥ 1.64 and mean skill ≥ 0.003 over the last 3 seasons |
 | 9 | Revenue split | 40 / 40 / 20 |
 | 10 | Pool fee | 0.3% permanent (competitive with other pools); launch fee from 20% → 0.3% over 300 blocks |
 | 11 | Keepers | `collectFees` every 24 h; gas refund × 1.5 with a cap |
@@ -147,7 +153,7 @@ Model in `simulation/` with low, medium and high volume scenarios, covering ETH 
 | 19 | Advanced verification | Halmos |
 | 20 | Initial price range (FDV in ETH) | **Open:** set by the phase 0 simulation |
 | 21 | Early exit | Voluntary portion only; penalty = min(time left / 104 weeks, 50%), burned; emissions and airdrop cannot exit early |
-| 22 | Skill reference | Skill measured against the base rate: S = b(1 − b) − Brier |
+| 22 | Skill reference | Skill against the realized Brier of answering b: S = (b − o)² − (p − o)²; b stored in basis points and initialized from the last year of prices |
 | 23 | Value thesis | Value through scarcity: locked supply, locked emissions, sell burn, early exit burn, buybacks and unused reserve burn |
 | 24 | Treasury | Rule-based `Treasury` contract with no withdrawal function; 20% of ETH revenue |
 | 25 | Treasury ETH | Keeper reserve of 90 days of maximum budget; all surplus buys back TENAX and burns it (at most once per 24 h, capped, 2% TWAP guard) |
