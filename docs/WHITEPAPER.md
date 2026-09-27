@@ -306,7 +306,7 @@ TENAX is an ERC-20 token named `Tenax Protocol` with 18 decimals and a fixed sup
 | Transfer by signature | EIP-3009 [6] | Gasless transfers, compatible with x402-style payments |
 | Burning | `ERC20Burnable` | Burns sell fees, early exit penalties, buybacks and leftovers |
 
-Both signature schemes use the EIP-712 [4] domain `name = "Tenax Protocol"`, `version = "1"`, bound to the chain ID and contract address. EIP-3009 authorizations use random 32-byte nonces, independent from permit nonces. Since the contract is immutable, this domain is permanent, and every wallet or integration that signs for TENAX depends on it.
+Both signature schemes use the EIP-712 [4] domain `name = "Tenax Protocol"`, `version = "1"`, bound to the chain ID and contract address. EIP-3009 authorizations use random 32-byte nonces, independent from permit nonces, and also accept signatures from contract wallets (ERC-1271), such as Safe accounts and smart wallets. Since the contract is immutable, this domain is permanent, and every wallet or integration that signs for TENAX depends on it.
 
 TENAX does not implement `ERC20Votes`. Voting power comes from the vote escrow.
 
