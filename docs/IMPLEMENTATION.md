@@ -12,7 +12,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 | Phase | Deliverable | Completion criteria |
 |---|---|---|
-| 0 | Whitepaper + simulations | Whitepaper reviewed and closed; volatility backtest (done) and economic simulation published; initial price range and $T_{ETH}$ set |
+| 0 | Whitepaper + simulations | Volatility backtest and economic simulation done; launch price range and $T_{ETH}$ set; whitepaper reviewed and closed |
 | 1 | TenaxToken + ERC-3009 | Unit and fuzz tests passing |
 | 2 | VotingEscrow | Slope/bias invariants, differential tests and Halmos; early exit (`withdrawEarly`, `grantedAmount`, penalty burn) |
 | 3 | OracleAdapter + ForecastRegistry + BrierMath | Fork tests; threshold and base rate updates; scoring, significance and aggregate invariants |
@@ -34,11 +34,9 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 `simulation/volatility_backtest.py` replays the forecasting rules on daily BTC and ETH prices from 2019 to 2026. The results, in [simulation/results/volatility_backtest.md](../simulation/results/volatility_backtest.md), set the skill definition, $\gamma$, $K$, the mean skill floor and the three-season eligibility window.
 
-### 2.2 Economic simulation
+### 2.2 Economic simulation (done)
 
-Model in `simulation/` with low, medium and high volume scenarios, covering ETH revenue per holder and per forecaster, cumulative burn, buybacks, reserve usage, liquid supply and pool depth.
-
-**Required output:** the price range of the single-sided launch position (initial price and upper bound) and the initial revenue target $T_{ETH}$.
+`simulation/economic_simulation.py` models the protocol pool, revenue split, buybacks, reserve, emissions, airdrop and vesting over 36 months, with Monte Carlo runs for weak, medium and strong demand. The results, in [simulation/results/economic_simulation.md](../simulation/results/economic_simulation.md), set the launch FDV (100 ETH, range up to the maximum price), $T_{ETH}$ (0.07 ETH per season) and `minVe` (5,000 veTENAX).
 
 ---
 
@@ -138,7 +136,7 @@ Model in `simulation/` with low, medium and high volume scenarios, covering ETH 
 | 4 | Upgrades | Immutable contracts, no proxies |
 | 5 | v1 questions | Volatility of BTC/USD and ETH/USD: will the absolute 24 h move exceed $X$? |
 | 6 | Round windows | 30 min submission / 24 h horizon (fixed) / 48 h reveal; one round per asset per day |
-| 7 | `minVe` and `K` | 1,000 veTENAX; K = 50 with weight capped at 2; EMA α = 1/32; threshold EMA β = 1/30, base rate EMA γ = 1/365 |
+| 7 | `minVe` and `K` | 5,000 veTENAX; K = 50 with weight capped at 2; EMA α = 1/32; threshold EMA β = 1/30, base rate EMA γ = 1/365 |
 | 8 | Season rewards | Linear in the season's skill; eligible with ≥ 20 rounds in the season, and z ≥ 1.64 and mean skill ≥ 0.003 over the last 3 seasons |
 | 9 | Revenue split | 40 / 40 / 20 |
 | 10 | Pool fee | 0.3% permanent (competitive with other pools); launch fee from 20% → 0.3% over 300 blocks |
@@ -151,7 +149,7 @@ Model in `simulation/` with low, medium and high volume scenarios, covering ETH 
 | 17 | Payout currency | WETH by default + optional `claimAsETH` |
 | 18 | Front-end | Vite + React + TypeScript + wagmi + viem |
 | 19 | Advanced verification | Halmos |
-| 20 | Initial price range (FDV in ETH) | **Open:** set by the phase 0 simulation |
+| 20 | Launch price range | Launch FDV of 100 ETH: from 1e-6 ETH per TENAX up to the maximum price |
 | 21 | Early exit | Voluntary portion only; penalty = min(time left / 104 weeks, 50%), burned; emissions and airdrop cannot exit early |
 | 22 | Skill reference | Skill against the realized Brier of answering b: S = (b − o)² − (p − o)²; b stored in basis points and initialized from the last year of prices |
 | 23 | Value thesis | Value through scarcity: locked supply, locked emissions, sell burn, early exit burn, buybacks and unused reserve burn |
@@ -159,3 +157,4 @@ Model in `simulation/` with low, medium and high volume scenarios, covering ETH 
 | 25 | Treasury ETH | Keeper reserve of 90 days of maximum budget; all surplus buys back TENAX and burns it (at most once per 24 h, capped, 2% TWAP guard) |
 | 26 | Treasury TENAX | 20M reserve released at 1/60 per season (~5 years); pays locked keeper rewards and a season top-up that shrinks as ETH revenue reaches $T_{ETH}$; unused allowance burned |
 | 27 | Airdrop leftovers | Unreceived fractions and unclaimed balances are burned |
+| 28 | Revenue target | $T_{ETH}$ = 0.07 ETH per season, about 0.07% of the launch FDV |

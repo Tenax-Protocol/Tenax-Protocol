@@ -264,7 +264,7 @@ A round is **voided**, with no scoring for anyone and no update to $X$ and $b$, 
 | Horizon | 24 h | Fixed | Code |
 | Reveal window | 48 h | 12 h to 7 days | Governance |
 | Cadence | 1 round per asset per day | Fixed | Code |
-| `minVe` | 1,000 veTENAX | Fixed | Code |
+| `minVe` | 5,000 veTENAX | Fixed | Code |
 | $K$ | 50 (weight capped at 2) | Fixed | Code |
 | $\alpha$ | 1/32 | Fixed | Code |
 | $\beta$ (threshold) | 1/30 | Fixed | Code |
@@ -275,7 +275,7 @@ A round is **voided**, with no scoring for anyone and no update to $X$ and $b$, 
 
 The horizon is fixed because the threshold $X$ is calibrated for 24-hour moves; changing the horizon would change the meaning of the question.
 
-`minVe` is equivalent, for example, to 2,000 TENAX locked for one year or 1,000 TENAX locked for two years. Every additional identity requires additional locked capital, which, together with the significance test, makes Sybil attacks unprofitable.
+`minVe` is equivalent, for example, to 10,000 TENAX locked for one year or 5,000 TENAX locked for two years, about $27 or $13 at the launch price. Every additional identity requires additional locked capital, which, together with the significance test, makes Sybil attacks unprofitable.
 
 ### 3.9 Historical validation
 
@@ -346,7 +346,7 @@ With 3 months left, the penalty is about 12.5%; with 6 months, 25%; with a year 
 
 TENAX launches in a Uniswap v4 [9] pool paired with native ETH. The pool and its initial position are created in a single transaction, and a hook restricts initialization to the authorized deployer, so nobody can front-run the launch with a pool at a different price.
 
-**Single-sided liquidity.** The initial position holds only TENAX, concentrated in a range above the initial price, so launching requires no ETH. The pool's ETH comes from the first buyers. The lower bound of the range sets the initial price in ETH and therefore the initial fully diluted valuation. The exact range is still open and will be set by the economic simulation.
+**Single-sided liquidity.** The initial position holds only TENAX, concentrated in a range above the initial price, so launching requires no ETH. The pool's ETH comes from the first buyers. The lower bound of the range sets the initial price in ETH and therefore the initial fully diluted valuation. The range runs from 1e-6 ETH per TENAX, a 100 ETH FDV, up to the pool's maximum price, so the position never runs out of TENAX to sell (section 6.7). Since it starts entirely in TENAX, the protocol's pool has no liquidity below the launch price: if the price returns to it, further sells only execute in other pools.
 
 **Launch fee.** The `LaunchFeeHook` overrides the pool fee on every swap. The fee starts high to make sniping bots unprofitable and decays linearly to its permanent value:
 
@@ -517,7 +517,23 @@ TENAX derives its value from scarcity, which has six sources:
 5. **Buyback and burn.** All treasury ETH above the keeper reserve buys TENAX in the pool and burns it. This is the source that removes tokens already in the market.
 6. **Unused reserve.** Each season, the part of the treasury reserve allowance that was not used is burned. If the network does not need it, this reaches about 4M TENAX per year during the first five years.
 
-In the first years, emission tends to exceed burning, so **total** supply grows. Scarcity during that period comes from **circulating** supply, which the protocol keeps locked. As emissions fall and usage accumulates burns, total supply grows more and more slowly and can start to shrink.
+In the first years, emission tends to exceed burning, so **total** supply grows. Scarcity during that period comes from **circulating** supply, which the protocol keeps locked. As emissions fall and usage accumulates burns, total supply grows more and more slowly and can start to shrink. In the economic simulation (section 6.7), the medium scenario ends three years with about 82.5M total supply.
+
+### 6.7 Economic simulation
+
+The economic simulation [13] models the protocol's pool, revenue split, buybacks, reserve, emissions, airdrop and vesting over 36 months, with a launch FDV of 100 ETH and three demand scenarios, defined by a daily volume and a target value that demand pulls the price toward. Demand is an assumption, not a forecast: the scenarios exist to test the mechanics.
+
+| Scenario | Base daily volume | Price at month 36 | ETH revenue over 3 years | Total supply at month 36 |
+|---|---|---|---|---|
+| Weak | 0.5% of FDV | ~1.0x | ~0.9 ETH | ~93.2M |
+| Medium | 2% of FDV | ~3.3x | ~6.3 ETH | ~82.5M |
+| Strong | 5% of FDV | ~15.5x | ~33 ETH | ~81.5M |
+
+Three conclusions shaped the design:
+
+- **The range runs to the maximum price.** Depth near the launch price barely depends on the upper bound, so the position starts at 1e-6 ETH per TENAX (a 100 ETH FDV) and runs to the pool's maximum price, never running out of TENAX to sell. At that price, a $500 buy moves the price by about 2%.
+- **Revenue is small at launch scale.** In the medium scenario, forecasters receive about 0.07 ETH per season, and that value sets the target $T_{\text{ETH}}$: with less revenue, the reserve tops up rewards; with more, the whole allowance is burned. Buybacks grow with volume but burn little at first.
+- **Early scarcity comes from tokens that do not circulate.** In the medium scenario, total supply falls to about 82.5M in three years, mostly from the unused reserve allowance (~11M) and airdrop leftovers (4.2M); sell fees burn ~1.8M and buybacks ~0.3M.
 
 ---
 
@@ -565,7 +581,7 @@ The treasury is the `Treasury` contract. It is not controlled by governance: eve
 \text{topUp}_s = C_s \cdot \max\left(0,\ 1 - \frac{\text{ETH}_s}{T_{\text{ETH}}}\right)
 ```
 
-where $C_s$ is what remains of the allowance after keepers, $\text{ETH}_s$ is the ETH received for the season and $T_{\text{ETH}}$ is a revenue target set by governance within bounds, with an initial value from the economic simulation. With little revenue, almost the entire allowance tops up rewards; once revenue reaches the target, the top-up drops to zero.
+where $C_s$ is what remains of the allowance after keepers, $\text{ETH}_s$ is the ETH received for the season and $T_{\text{ETH}}$ is a revenue target set by governance within bounds, with an initial value of 0.07 ETH per season, about 0.07% of the launch FDV (section 6.7). With little revenue, almost the entire allowance tops up rewards; once revenue reaches the target, the top-up drops to zero.
 
 Whatever remains of the allowance when the season closes is burned, including the top-up when no participant is eligible. The reserve never accumulates: it is either used during the season or it ceases to exist.
 
@@ -666,6 +682,8 @@ The following properties are tested as Foundry invariants:
 - **Immutability.** Contracts cannot be patched. A bug requires a new deployment and a voluntary migration, which is why verification precedes launch.
 - **External dependencies.** The protocol relies on Chainlink feeds and on Base's `L1Block` and `GasPriceOracle` predeploys.
 - **Delayed signal.** The aggregate is published after each horizon and serves as a verifiable record, not a live feed.
+- **No liquidity below the launch price.** The protocol position starts entirely in TENAX, so it does not buy tokens below the launch price. With weak demand, sells at that level only execute in other pools, at lower prices.
+- **Small revenue at launch scale.** With a 100 ETH FDV and daily volume of 2% of FDV, fees add up to about 2.5 ETH in the first year (section 6.7). Revenue only becomes significant with much higher volume.
 
 ---
 
@@ -697,6 +715,7 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 10. Chainlink. L2 Sequencer Uptime Feeds documentation.
 11. Optimism. OP Stack specification: predeploys (`L1Block`, `GasPriceOracle`).
 12. Tenax Protocol. Volatility question backtest, `simulation/results/volatility_backtest.md`.
+13. Tenax Protocol. Economic simulation, `simulation/results/economic_simulation.md`.
 
 ---
 
@@ -712,7 +731,7 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Submission / reveal windows | 30 min / 48 h | Within bounds (section 3.8) |
 | $\beta$ (threshold) and $\gamma$ (base rate) | 1/30 and 1/365 | No |
 | Initial $X$ and $b$ | Computed from the last year of prices | No |
-| `minVe` | 1,000 veTENAX | No |
+| `minVe` | 5,000 veTENAX | No |
 | Aggregation weight factor $K$ | 50, weight capped at 2 | No |
 | Reputation EMA $\alpha$ | 1/32 | No |
 | Season length | 30 days | No |
@@ -725,12 +744,12 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Treasury reserve | 20M TENAX, 1/60 per season, remainder burned | No |
 | Keeper ETH reserve | 90 days of the maximum budget | No |
 | Buyback | At most every 24 h, capped per call, max 2% deviation from the 30-min TWAP | Cap within bounds |
-| Revenue target $T_{\text{ETH}}$ | Set by the economic simulation | Within bounds |
+| Revenue target $T_{\text{ETH}}$ | 0.07 ETH per season | Within bounds |
 | Keeper reward | Gas × 1.5, capped | Caps within bounds |
 | Emission epoch | 2,628,000 L1 blocks | No |
 | Emission reductions | −50%, −40%, −30%, −20%, then −15% | No |
 | Governance | 1 d delay, 5 d vote, 10% quorum, 100k threshold, 2 d timelock | Through governance |
-| Initial price range | Set by the economic simulation | Open |
+| Initial price range | From 1e-6 ETH per TENAX (100 ETH FDV) to the maximum price | No |
 
 ## Appendix B. Glossary
 
