@@ -20,7 +20,7 @@ runs = 1_000
 [profile.default.invariant]
 runs = 256
 depth = 100
-fail_on_revert = false
+fail_on_revert = true
 
 # Heavier fuzzing in CI.
 [profile.ci.fuzz]
@@ -29,6 +29,11 @@ runs = 10_000
 [profile.ci.invariant]
 runs = 512
 depth = 200
+
+[lint]
+# The protocol clock is the block timestamp by design (ERC-6372, weekly locks, seasons,
+# authorization windows); second-level drift has no meaningful effect on any of them.
+exclude_lints = ["block-timestamp"]
 
 [fmt]
 line_length = 120

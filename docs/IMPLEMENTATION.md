@@ -14,7 +14,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 |---|---|---|
 | 0 | Whitepaper + simulations | Volatility backtest and economic simulation done; launch price range and $T_{ETH}$ set; whitepaper reviewed and closed |
 | 1 | TenaxToken + ERC-3009 | Unit and fuzz tests passing |
-| 2 | VotingEscrow | Slope/bias invariants, differential tests and Halmos; early exit (`withdrawEarly`, `grantedAmount`, penalty burn) |
+| 2 | VotingEscrow | Slope/bias invariants and differential tests; early exit (`withdrawEarly`, `grantedAmount`, penalty burn) |
 | 3 | OracleAdapter + ForecastRegistry + BrierMath | Fork tests; threshold and base rate updates; scoring, significance and aggregate invariants |
 | 4 | EmissionSchedule + SeasonRewards + MerkleAirdrop + VestingWallet | Emission ≤ schedule; nothing is liquid |
 | 5 | LiquidityVault + RevenueRouter + FeeDistributor + Treasury | End-to-end fee flow on a fork; buyback, reserve allowance and burns |
@@ -61,7 +61,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   │   ├── distribution/MerkleAirdrop.sol
 │   │   ├── governance/TenaxGovernor.sol
 │   │   └── hooks/LaunchFeeHook.sol
-│   ├── test/ (unit/ fuzz/ invariant/ fork/ symbolic/)
+│   ├── test/ (unit/ fuzz/ invariant/ fork/)
 │   ├── script/ (Deploy.s.sol, LaunchPool.s.sol)
 │   └── foundry.toml
 ├── simulation/                 # economic and scoring model
@@ -70,7 +70,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 └── README.md
 ```
 
-**Toolchain:** Solidity 0.8.26 (`evm_version = cancun`), OpenZeppelin Contracts v5.x, Foundry, Halmos, Slither, Aderyn. The hook address salt is mined with `HookMiner`. Local tests simulate the OP Stack predeploys with `vm.etch` and `vm.mockCall`.
+**Toolchain:** Solidity 0.8.26 (`evm_version = cancun`), OpenZeppelin Contracts v5.x, Foundry, Slither, Aderyn. The hook address salt is mined with `HookMiner`. Local tests simulate the OP Stack predeploys with `vm.etch` and `vm.mockCall`.
 
 ---
 
@@ -95,7 +95,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 ## 5. Launch checklist
 
 - [ ] Tests passing, ≥ 95% coverage on core contracts
-- [ ] Slither/Aderyn with no open critical findings; Halmos properties proven
+- [ ] Slither/Aderyn with no open critical findings
 - [ ] `SECURITY.md` and `TOKENOMICS.md` published
 - [ ] Full test season on Base Sepolia (forecasts, reveals, scoring, aggregate, fee collection, distribution, keepers, governance)
 - [ ] Airdrop Merkle tree generated from the test season and published
@@ -148,7 +148,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 16 | Emission clock | Ethereum L1 blocks via `L1Block` |
 | 17 | Payout currency | WETH by default + optional `claimAsETH` |
 | 18 | Front-end | Vite + React + TypeScript + wagmi + viem |
-| 19 | Advanced verification | Halmos |
+| 19 | Advanced verification | Differential tests against closed-form formulas plus invariants; symbolic execution (Halmos) was tried and dropped because 256-bit division properties exceed solver limits |
 | 20 | Launch price range | Launch FDV of 100 ETH: from 1e-6 ETH per TENAX up to the maximum price |
 | 21 | Early exit | Voluntary portion only; penalty = min(time left / 104 weeks, 50%), burned; emissions and airdrop cannot exit early |
 | 22 | Skill reference | Skill against the realized Brier of answering b: S = (b − o)² − (p − o)²; b stored in basis points and initialized from the last year of prices |

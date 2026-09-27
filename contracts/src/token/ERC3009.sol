@@ -164,10 +164,7 @@ abstract contract ERC3009 is ERC20, EIP712 {
         bytes32 nonce,
         bytes memory signature
     ) private {
-        // Validity windows are part of EIP-3009; a few seconds of timestamp drift has no meaningful effect.
-        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp <= validAfter) revert ERC3009AuthorizationNotYetValid(validAfter);
-        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp >= validBefore) revert ERC3009AuthorizationExpired(validBefore);
 
         // Effects before the signature check: an ERC-1271 wallet is called through a staticcall, and an
