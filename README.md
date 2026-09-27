@@ -40,7 +40,7 @@ Details in the [implementation plan](docs/IMPLEMENTATION.md).
 
 ## Stack
 
-Solidity 0.8.26, Foundry, OpenZeppelin Contracts v5, Uniswap v4, Chainlink Data Feeds, Halmos, Slither and Aderyn. Front-end in Vite, React, TypeScript, wagmi and viem.
+Solidity 0.8.26, Foundry, OpenZeppelin Contracts v5, Uniswap v4, Chainlink Data Feeds, Slither and Aderyn. Front-end in Vite, React, TypeScript, wagmi and viem.
 
 ## License
 

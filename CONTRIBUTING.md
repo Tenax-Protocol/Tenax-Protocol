@@ -130,7 +130,8 @@ git push origin v0.1.0
 - No loops over participants; every loop is bounded.
 
 **Tests**
-- Layout: `test/unit`, `test/fuzz`, `test/invariant`, `test/fork`, `test/symbolic`.
+- Layout: `test/unit`, `test/fuzz`, `test/invariant`, `test/fork`.
+- Math is tested differentially: fuzz tests compare every result with a closed-form reference formula.
 - Test names: `test_<function>_<scenario>`, `testFuzz_<...>`, `invariant_<...>`, `test_RevertWhen_<condition>`.
 - A phase is only done when its tests pass and core contracts have ≥ 95% coverage.
 

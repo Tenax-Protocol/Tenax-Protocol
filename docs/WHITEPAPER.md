@@ -618,7 +618,7 @@ Governance only adjusts parameters, always within the bounds written in code: th
 | Manipulating one's own weight | Weight fixed at commit from prior history; capped at 2× |
 | Manipulating the threshold or base rate | $X$ and $b$ come only from oracle prices and are fixed when the round opens |
 | Exiting early with protocol-delivered tokens | `grantedAmount` never leaves before `unlockTime` |
-| Vote-escrow math errors | Differential tests, fuzzing, invariants and symbolic execution |
+| Vote-escrow math errors | Differential tests against reference formulas, fuzzing and invariants |
 | Rounding errors | High-precision fixed point, rounding in the protocol's favor |
 | Wrong L1 block reads | Single official source (`L1Block`); emission can never exceed the schedule |
 | Stale or manipulated prices | Chainlink with staleness checks; voided rounds |
@@ -658,7 +658,7 @@ The following properties are tested as Foundry invariants:
 ### 9.3 Verification
 
 - Unit, fuzz, invariant and fork tests with Foundry against real Base deployments (Chainlink feeds, WETH, the v4 `PoolManager` and the OP Stack predeploys).
-- Symbolic execution with Halmos for the vote-escrow, early exit and scoring math.
+- Differential tests that compare the vote-escrow, early exit and scoring math with closed-form reference formulas over thousands of random inputs.
 - Static analysis with Slither and Aderyn, with every finding annotated.
 - A full public test season on Base Sepolia before mainnet.
 - A security report in audit format, published with the code.
