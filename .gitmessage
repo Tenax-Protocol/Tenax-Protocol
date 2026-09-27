@@ -1,0 +1,11 @@
+
+# <type>(<scope>): <subject>
+#
+# type:  feat fix docs test refactor perf chore ci build style revert
+# scope: token escrow forecast oracle liquidity revenue rewards airdrop
+#        gov hook deploy sim app deps (optional)
+# subject: imperative, lowercase, no period, header <= 72 chars
+#
+# Body: explain why, not how. Wrap at 72 chars.
+#
+# Footer: Closes #12 | Refs #12 | BREAKING CHANGE: <description>

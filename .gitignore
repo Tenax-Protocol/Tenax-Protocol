@@ -1,0 +1,36 @@
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+contracts/broadcast/**/dry-run/
+lcov.info
+coverage/
+
+# Environment and keys
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+keystore/
+
+# Node / front-end
+node_modules/
+dist/
+.vite/
+*.log
+
+# Python / simulation
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
