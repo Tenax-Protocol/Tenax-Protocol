@@ -22,6 +22,7 @@ dist/
 
 # Python / simulation
 .venv/
+simulation/data/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/

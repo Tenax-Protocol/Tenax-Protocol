@@ -154,7 +154,7 @@ forecasting and earning require locking → less circulating supply
 
 In v1, the protocol asks about the volatility of two assets: will the absolute move of **BTC/USD** (or **ETH/USD**) over the next 24 hours **exceed the round's threshold** $X$? A forecast is a probability $p$ expressed in basis points, from 0 to 10,000.
 
-The question is about volatility rather than direction for a statistical reason. The short-term direction of a liquid asset is close to random, so measured skill would be mostly luck. Volatility is persistent (turbulent periods tend to stay turbulent), which gives good forecasters a real, measurable edge.
+The question is about volatility rather than direction for a statistical reason. The short-term direction of a liquid asset is close to random, so measured skill would be mostly luck. Volatility is persistent (turbulent periods tend to stay turbulent), which gives good forecasters a real, measurable edge (section 3.9).
 
 One round opens per asset per day, about 60 per 30-day season across both assets. Rounds for the same asset never overlap, so each outcome is independent evidence.
 
@@ -178,13 +178,13 @@ Recording prices and finalizing rounds are permissionless calls paid by the prot
 A fixed threshold would not work: in a calm market almost no round would exceed it, and in a turbulent one almost every round would. Instead, each asset keeps two exponential moving averages, updated whenever a round resolves:
 
 ```math
-X \leftarrow X + \beta\,(|r| - X), \qquad b \leftarrow b + \gamma\,(o - b), \qquad \beta = \gamma = \tfrac{1}{30}
+X \leftarrow X + \beta\,(|r| - X), \qquad b \leftarrow b + \gamma\,(o - b), \qquad \beta = \tfrac{1}{30},\ \ \gamma = \tfrac{1}{365}
 ```
 
-- **Threshold $X$:** tracks the typical size of 24-hour moves over the last month, so the question stays uncertain in any market regime. Each asset's initial value is set at deployment.
-- **Base rate $b$:** the recent frequency with which the threshold was exceeded. It is the best forecast available to someone with no information beyond history. It starts at 0.5.
+- **Threshold $X$:** tracks the typical size of 24-hour moves over the last month, so the question stays uncertain in any market regime. Each asset's initial value is computed at deployment from the last year of prices.
+- **Base rate $b$:** the frequency with which the threshold was exceeded, measured by a slow average of about one year. It is the best forecast available to someone with no information beyond history. The slowness is deliberate: with a fast average, $b$ moves several points from one week to the next, and answering a constant, such as the historical average, would start to earn skill without any forecasting. The initial value is the frequency measured over the last year of prices before deployment.
 
-Both values are copied into the round when it opens and never change afterwards, so every participant answers the same question against the same reference. Voided rounds do not update the averages.
+Both values are copied into the round when it opens and never change afterwards, so every participant answers the same question against the same reference. $b$ is stored in basis points, the same unit as forecasts, so answering exactly $b$ is always possible. Voided rounds do not update the averages.
 
 ### 3.3 Commit-reveal
 
@@ -203,10 +203,10 @@ A participant could try to reveal only the forecasts that turned out well. To pr
 Let $p \in [0, 1]$ be the revealed probability and $o \in \{0, 1\}$ the outcome. The protocol uses the Brier score [1] and measures skill relative to the round's base rate:
 
 ```math
-B(p, o) = (p - o)^2, \qquad S(p, o) = b\,(1 - b) - B(p, o)
+B(p, o) = (p - o)^2, \qquad S(p, o) = B(b, o) - B(p, o) = (b - o)^2 - (p - o)^2
 ```
 
-The term $b(1 - b)$ is the expected Brier score of always answering the base rate. Positive skill therefore means knowing more than history, and nobody earns points merely for knowing how often the event happens. When $b = 0.5$, the reference is 0.25, the score of always answering 50%. In a single round, $S \in [b(1-b) - 1,\ b(1-b)]$, which lies within $[-1,\ 0.25]$.
+Skill is the improvement over the **realized** Brier score of answering the base rate in that round. Answering $b$ scores exactly zero in every round, and positive skill means knowing more than history. Measuring against the realized score, rather than the expected score $b(1-b)$, keeps the noise in $b$ from turning into skill or penalties for someone who knows nothing. In a single round, $S \in [(b-o)^2 - 1,\ (b-o)^2]$.
 
 **Honesty is optimal.** If the true probability of the event is $q$, the expected Brier score of a forecast $p$ is
 
@@ -214,9 +214,9 @@ The term $b(1 - b)$ is the expected Brier score of always answering the base rat
 \mathbb{E}[B] = q\,(1 - p)^2 + (1 - q)\,p^2, \qquad \frac{\partial\, \mathbb{E}[B]}{\partial p} = 2\,(p - q)
 ```
 
-which has a unique minimum at $p = q$. Since $b$ is fixed before submission, it does not depend on $p$, and the Brier score remains strictly proper [2]: reporting one's true belief is the only strategy that maximizes expected skill.
+which has a unique minimum at $p = q$. Since $b$ is fixed before submission, $B(b, o)$ does not depend on $p$: maximizing expected skill is the same as minimizing the expected Brier score, and the rule remains strictly proper [2]. Reporting one's true belief is the only strategy that maximizes expected skill.
 
-**Guessing does not pay.** Always answering the base rate yields zero expected skill. Answering uniformly at random gives $\mathbb{E}[B] = 1/3$ for any event, an expected skill of $b(1-b) - 1/3 \le -1/12$.
+**Guessing does not pay.** Always answering the base rate scores zero in every round. Answering uniformly at random gives $\mathbb{E}[B] = 1/3$ for any event, while the score of answering $b$ stays close to $b(1-b) \le 0.25$, an expected skill of about $-1/12$ or worse.
 
 ### 3.5 Reputation
 
@@ -233,10 +233,10 @@ giving an effective memory of about 32 rounds, or 16 days when forecasting on bo
 At commit time, each participant $i$ receives a weight based on their reputation so far:
 
 ```math
-w_i = 1 + K \cdot \max(\text{EMA}_i,\ 0), \qquad K = 4
+w_i = \min\big(1 + K \cdot \max(\text{EMA}_i,\ 0),\ 2\big), \qquad K = 50
 ```
 
-Since skill never exceeds $b(1-b) \le 0.25$, weights range from 1 for a newcomer to 2 for the best possible record. The cap limits how much any single track record can move the aggregate. The aggregate is a weighted linear opinion pool [3]:
+A good forecaster averages skill of the order of 0.01 per round (section 3.9), so $K = 50$ gives a typical forecaster with a good record a weight of about 1.4 and the best ones the cap of 2; a newcomer weighs 1. The cap limits how much any single track record can move the aggregate. The aggregate is a weighted linear opinion pool [3]:
 
 ```math
 \bar{p} = \frac{\sum_i w_i\, p_i}{\sum_i w_i}
@@ -264,17 +264,33 @@ A round is **voided**, with no scoring for anyone and no update to $X$ and $b$, 
 | Horizon | 24 h | Fixed | Code |
 | Reveal window | 48 h | 12 h to 7 days | Governance |
 | Cadence | 1 round per asset per day | Fixed | Code |
-| `minVe` | 1,000 veTENAX | Fixed | Code |
-| $K$ | 4 | Fixed | Code |
+| `minVe` | 5,000 veTENAX | Fixed | Code |
+| $K$ | 50 (weight capped at 2) | Fixed | Code |
 | $\alpha$ | 1/32 | Fixed | Code |
-| $\beta$ (threshold) and $\gamma$ (base rate) | 1/30 | Fixed | Code |
-| Initial $X$ | Per asset | Fixed | Deployment |
-| Initial $b$ | 0.5 | Fixed | Code |
+| $\beta$ (threshold) | 1/30 | Fixed | Code |
+| $\gamma$ (base rate) | 1/365 | Fixed | Code |
+| Initial $X$ | Mean absolute move over the last year, per asset | Fixed | Deployment |
+| Initial $b$ | Event frequency over the last year, per asset | Fixed | Deployment |
 | Oracle staleness tolerance | Feed heartbeat + 10% | Fixed per feed | Deployment |
 
 The horizon is fixed because the threshold $X$ is calibrated for 24-hour moves; changing the horizon would change the meaning of the question.
 
-`minVe` is equivalent, for example, to 2,000 TENAX locked for one year or 1,000 TENAX locked for two years. Every additional identity requires additional locked capital, which, together with the significance test, makes Sybil attacks unprofitable.
+`minVe` is equivalent, for example, to 10,000 TENAX locked for one year or 5,000 TENAX locked for two years, about $27 or $13 at the launch price. Every additional identity requires additional locked capital, which, together with the significance test, makes Sybil attacks unprofitable.
+
+### 3.9 Historical validation
+
+The rules in this section were tested on daily BTC and ETH prices from 2019 to 2026: 91 seasons and 5,460 rounds, using in each round only the information available before submission [12]. The event occurred in 36.6% of rounds, and $b$ tracked that frequency.
+
+| Forecaster | Mean skill per round | Eligible 3-season windows |
+|---|---|---|
+| Always the base rate $b$ | 0 | 0% |
+| Always the historical frequency (36%) | +0.0006 | 4.5% |
+| EWMA volatility, normal model | −0.0103 | 1.1% |
+| EWMA volatility, model calibrated on past data only | +0.0078 | 48.3% |
+| Base rate with 1-point noise | Negative | 0% |
+| Random probability | Strongly negative | 0% |
+
+A simple volatility model, with no privileged information, improves the Brier score of answering the base rate by 3.4% and is eligible in almost half of the windows. Forecasts without information almost never pass. Skill on this question is measurable, and the rules separate forecasters from guessers. Binance prices (BTC/USDT and ETH/USDT) were used as a proxy for the Chainlink feeds.
 
 ---
 
@@ -330,7 +346,7 @@ With 3 months left, the penalty is about 12.5%; with 6 months, 25%; with a year 
 
 TENAX launches in a Uniswap v4 [9] pool paired with native ETH. The pool and its initial position are created in a single transaction, and a hook restricts initialization to the authorized deployer, so nobody can front-run the launch with a pool at a different price.
 
-**Single-sided liquidity.** The initial position holds only TENAX, concentrated in a range above the initial price, so launching requires no ETH. The pool's ETH comes from the first buyers. The lower bound of the range sets the initial price in ETH and therefore the initial fully diluted valuation. The exact range is still open and will be set by the economic simulation.
+**Single-sided liquidity.** The initial position holds only TENAX, concentrated in a range above the initial price, so launching requires no ETH. The pool's ETH comes from the first buyers. The lower bound of the range sets the initial price in ETH and therefore the initial fully diluted valuation. The range runs from 1e-6 ETH per TENAX, a 100 ETH FDV, up to the pool's maximum price, so the position never runs out of TENAX to sell (section 6.7). Since it starts entirely in TENAX, the protocol's pool has no liquidity below the launch price: if the price returns to it, further sells only execute in other pools.
 
 **Launch fee.** The `LaunchFeeHook` overrides the pool fee on every swap. The fee starts high to make sniping bots unprofitable and decays linearly to its permanent value:
 
@@ -383,23 +399,23 @@ where $R_w$ is the ETH received in week $w$ and $t_w$ its start. If no veTENAX e
 
 ### 5.6 Season rewards
 
-Forecasters are paid at the end of each 30-day season, in ETH from the revenue share and in TENAX from emissions (section 6.2) and, while ETH revenue is low, from the treasury reserve top-up (section 7.2). Only those who demonstrate skill with statistical significance are paid. A participant is **eligible** if they took part in at least **20 rounds** in the season and
+Forecasters are paid at the end of each 30-day season, in ETH from the revenue share and in TENAX from emissions (section 6.2) and, while ETH revenue is low, from the treasury reserve top-up (section 7.2). Only those who demonstrate skill with statistical significance are paid. A participant is **eligible** in a season if they took part in at least **20 rounds** in it and if, summing the current season and the two previous ones (about 180 rounds), they pass two tests:
 
 ```math
-z_i = \frac{\Sigma S_i}{\sqrt{\Sigma S_i^2}} \ge 1.64
+z_i = \frac{\Sigma S_i}{\sqrt{\Sigma S_i^2}} \ge 1.64, \qquad \frac{\Sigma S_i}{n_i} \ge 0.003
 ```
 
-For someone without skill, per-round skill has zero mean and $z$ behaves approximately like a standard normal, so only about 5% of them pass by luck. Genuine skill accumulates faster than noise, and $z$ grows with the number of rounds. The contract runs the test without a square root: $\Sigma S_i > 0$ and $(\Sigma S_i)^2 \ge 1.64^2 \cdot \Sigma S_i^2$.
+The first is a significance test: for someone without skill, per-round skill has zero or negative mean and $z$ behaves approximately like a standard normal, so only about 5% pass by luck. The second is a floor on mean skill: since $z$ measures consistency rather than size, without the floor a microscopic but constant edge would also pass. The three-season window gives the test enough data: in the backtest, a simple volatility model passes in 48% of windows, against 31% when each season is evaluated alone (section 3.9). The contract runs both tests without a square root, $\Sigma S_i \ge 0.003\, n_i$ and $(\Sigma S_i)^2 \ge 1.64^2 \cdot \Sigma S_i^2$, keeping $n$, $\Sigma S$ and $\Sigma S^2$ for each participant's last three seasons.
 
-Each eligible participant $i$ receives a share of the season budget $R_s$ proportional to their accumulated skill:
+Each eligible participant $i$ receives a share of the season budget $R_s$ proportional to the skill accumulated **in the current season**:
 
 ```math
-\text{reward}_i = R_s \cdot \frac{\Sigma S_i}{\sum_{j\,\in\,\text{eligible}} \Sigma S_j}
+\text{reward}_i = R_s \cdot \frac{\max(\Sigma S_i^{(s)},\ 0)}{\sum_{j\,\in\,\text{eligible}} \max(\Sigma S_j^{(s)},\ 0)}
 ```
 
-The denominator is maintained incrementally on every reveal: if the participant was eligible, their old contribution is removed; if they remain or become eligible, the new one is added. There is no loop over participants, and each participant claims for themselves. Lazy penalties applied at claim time can reduce a share or remove eligibility; any remainder returns to the schedule, and the contract never pays more than the budget.
+The denominator is maintained incrementally on every reveal: if the participant already counted, their old contribution is removed; if they still count or start to count, the new one is added. There is no loop over participants, and each participant claims for themselves. Lazy penalties applied at claim time can reduce a share or remove eligibility; any remainder returns to the schedule, and the contract never pays more than the budget.
 
-The test is also the Sybil defense. Wallets that only guess pass in about 5% of seasons, and each one requires locked `minVe`, so splitting capital across many wallets does not pay.
+The tests are also the Sybil defense. In the backtest, wallets answering the base rate with small variations passed in no window, and always answering the historical frequency passed in about 5% of them, with a small fraction of the budget. Since each wallet requires locked `minVe`, splitting capital across many wallets does not pay.
 
 The ETH portion is paid liquid, as compensation for work. The TENAX portion is always delivered into a lock of at least 52 weeks.
 
@@ -457,7 +473,7 @@ Measuring in blocks has consequences that are accepted by design. If Ethereum sh
 
 ### 6.3 Airdrop
 
-The airdrop rewards participants of the public test season on Base Sepolia who pass the significance test of section 5.6, so it goes to people who have already shown forecasting ability. Claims open only after the official pool exists, which prevents early claimers from creating a pool of their own.
+The airdrop rewards participants of the public test season on Base Sepolia who pass the tests of section 5.6 applied to the whole test season, so it goes to people who have already shown forecasting ability. Claims open only after the official pool exists, which prevents early claimers from creating a pool of their own.
 
 Tokens are always claimed into a lock and cannot exit early. The Merkle leaf amount is a maximum, and the fraction received depends on the lock duration chosen:
 
@@ -501,7 +517,23 @@ TENAX derives its value from scarcity, which has six sources:
 5. **Buyback and burn.** All treasury ETH above the keeper reserve buys TENAX in the pool and burns it. This is the source that removes tokens already in the market.
 6. **Unused reserve.** Each season, the part of the treasury reserve allowance that was not used is burned. If the network does not need it, this reaches about 4M TENAX per year during the first five years.
 
-In the first years, emission tends to exceed burning, so **total** supply grows. Scarcity during that period comes from **circulating** supply, which the protocol keeps locked. As emissions fall and usage accumulates burns, total supply grows more and more slowly and can start to shrink.
+In the first years, emission tends to exceed burning, so **total** supply grows. Scarcity during that period comes from **circulating** supply, which the protocol keeps locked. As emissions fall and usage accumulates burns, total supply grows more and more slowly and can start to shrink. In the economic simulation (section 6.7), the medium scenario ends three years with about 82.5M total supply.
+
+### 6.7 Economic simulation
+
+The economic simulation [13] models the protocol's pool, revenue split, buybacks, reserve, emissions, airdrop and vesting over 36 months, with a launch FDV of 100 ETH and three demand scenarios, defined by a daily volume and a target value that demand pulls the price toward. Demand is an assumption, not a forecast: the scenarios exist to test the mechanics.
+
+| Scenario | Base daily volume | Price at month 36 | ETH revenue over 3 years | Total supply at month 36 |
+|---|---|---|---|---|
+| Weak | 0.5% of FDV | ~1.0x | ~0.9 ETH | ~93.2M |
+| Medium | 2% of FDV | ~3.3x | ~6.3 ETH | ~82.5M |
+| Strong | 5% of FDV | ~15.5x | ~33 ETH | ~81.5M |
+
+Three conclusions shaped the design:
+
+- **The range runs to the maximum price.** Depth near the launch price barely depends on the upper bound, so the position starts at 1e-6 ETH per TENAX (a 100 ETH FDV) and runs to the pool's maximum price, never running out of TENAX to sell. At that price, a $500 buy moves the price by about 2%.
+- **Revenue is small at launch scale.** In the medium scenario, forecasters receive about 0.07 ETH per season, and that value sets the target $T_{\text{ETH}}$: with less revenue, the reserve tops up rewards; with more, the whole allowance is burned. Buybacks grow with volume but burn little at first.
+- **Early scarcity comes from tokens that do not circulate.** In the medium scenario, total supply falls to about 82.5M in three years, mostly from the unused reserve allowance (~11M) and airdrop leftovers (4.2M); sell fees burn ~1.8M and buybacks ~0.3M.
 
 ---
 
@@ -549,7 +581,7 @@ The treasury is the `Treasury` contract. It is not controlled by governance: eve
 \text{topUp}_s = C_s \cdot \max\left(0,\ 1 - \frac{\text{ETH}_s}{T_{\text{ETH}}}\right)
 ```
 
-where $C_s$ is what remains of the allowance after keepers, $\text{ETH}_s$ is the ETH received for the season and $T_{\text{ETH}}$ is a revenue target set by governance within bounds, with an initial value from the economic simulation. With little revenue, almost the entire allowance tops up rewards; once revenue reaches the target, the top-up drops to zero.
+where $C_s$ is what remains of the allowance after keepers, $\text{ETH}_s$ is the ETH received for the season and $T_{\text{ETH}}$ is a revenue target set by governance within bounds, with an initial value of 0.07 ETH per season, about 0.07% of the launch FDV (section 6.7). With little revenue, almost the entire allowance tops up rewards; once revenue reaches the target, the top-up drops to zero.
 
 Whatever remains of the allowance when the season closes is burned, including the top-up when no participant is eligible. The reserve never accumulates: it is either used during the season or it ceases to exist.
 
@@ -579,9 +611,10 @@ Governance only adjusts parameters, always within the bounds written in code: th
 |---|---|
 | Copying other forecasts | Commit-reveal: forecasts stay hidden until after the horizon |
 | Revealing only correct forecasts | Unrevealed commitments score the worst possible value |
-| Random guessing to farm rewards | Negative expected skill; rewards only with z ≥ 1.64 |
-| Earning points just by knowing the event frequency | Skill measured against the base rate $b$; answering $b$ gives zero expected skill |
-| Sybil identities | `minVe` locked per wallet; only ~5% of wallets without skill pass the test |
+| Random guessing to farm rewards | Negative expected skill; rewards only with z ≥ 1.64 and mean skill ≥ 0.003 |
+| Earning points just by knowing the event frequency | Skill measured against the realized score of answering $b$ (zero in every round), slow $b$ and a mean skill floor |
+| Exploiting rounding | $b$ stored in basis points, the same unit as forecasts |
+| Sybil identities | `minVe` locked per wallet; wallets without skill almost never pass the tests |
 | Manipulating one's own weight | Weight fixed at commit from prior history; capped at 2× |
 | Manipulating the threshold or base rate | $X$ and $b$ come only from oracle prices and are fixed when the round opens |
 | Exiting early with protocol-delivered tokens | `grantedAmount` never leaves before `unlockTime` |
@@ -610,8 +643,8 @@ The following properties are tested as Foundry invariants:
 - TENAX total supply never increases after deployment.
 - The sum of veTENAX balances equals the escrow's total supply (within rounding), and the escrow's TENAX balance covers all locks.
 - Tokens recorded in `grantedAmount` never leave before `unlockTime`; every early exit penalty is at most 50% of the voluntary portion and is burned in full.
-- Every commitment is revealed or penalized exactly once; per-round skill stays in $[b(1-b) - 1,\ b(1-b)]$, weights in $[1,\ 2]$ and the aggregate in $[0,\ 10{,}000]$.
-- A round's threshold $X$ and base rate $b$ never change after it opens, and $b$ always stays in $[0,\ 1]$.
+- Every commitment is revealed or penalized exactly once; per-round skill stays in $[(b-o)^2 - 1,\ (b-o)^2]$ and is exactly zero when $p = b$, weights in $[1,\ 2]$ and the aggregate in $[0,\ 10{,}000]$.
+- A round's threshold $X$ and base rate $b$ never change after it opens, and $b$ always stays in $[0,\ 1]$, in basis points.
 - The `ForecastRegistry` never holds ETH, WETH or TENAX.
 - The liquidity of the protocol position never decreases.
 - Fee and season distributions never pay more than they received or than the schedule allows, and only pay eligible participants.
@@ -640,7 +673,7 @@ The following properties are tested as Foundry invariants:
 - **Buybacks depend on revenue.** Without volume in the protocol's pool, there is no surplus ETH to buy back with.
 - **Reserve used during bootstrapping.** While revenue is low, the reserve allowance goes to rewards instead of being burned, which delays this source of scarcity.
 - **Bootstrapping.** Early on, volume and ETH revenue are small and most rewards are locked TENAX, which only attracts participants if the token has market value.
-- **Few eligible forecasters at first.** With about 60 rounds per season, even good forecasters may need more than one season to reach significance.
+- **Few eligible forecasters at first.** The test window covers three seasons; during the first two it is still incomplete and fewer forecasters reach significance. Even afterwards, a forecaster with a simple model passes in about half of the windows.
 - **ETH correlation.** With an ETH/TENAX pair, the dollar value of both the token and its revenue moves with ETH.
 - **Thin early liquidity.** The pool starts with no ETH, so large early sells move the price quickly.
 - **Fixed `minVe`.** The access threshold is constant in TENAX, so its real cost changes with the token price.
@@ -649,6 +682,8 @@ The following properties are tested as Foundry invariants:
 - **Immutability.** Contracts cannot be patched. A bug requires a new deployment and a voluntary migration, which is why verification precedes launch.
 - **External dependencies.** The protocol relies on Chainlink feeds and on Base's `L1Block` and `GasPriceOracle` predeploys.
 - **Delayed signal.** The aggregate is published after each horizon and serves as a verifiable record, not a live feed.
+- **No liquidity below the launch price.** The protocol position starts entirely in TENAX, so it does not buy tokens below the launch price. With weak demand, sells at that level only execute in other pools, at lower prices.
+- **Small revenue at launch scale.** With a 100 ETH FDV and daily volume of 2% of FDV, fees add up to about 2.5 ETH in the first year (section 6.7). Revenue only becomes significant with much higher volume.
 
 ---
 
@@ -679,6 +714,8 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 9. Uniswap Labs. *Uniswap v4 Core* whitepaper, 2024.
 10. Chainlink. L2 Sequencer Uptime Feeds documentation.
 11. Optimism. OP Stack specification: predeploys (`L1Block`, `GasPriceOracle`).
+12. Tenax Protocol. Volatility question backtest, `simulation/results/volatility_backtest.md`.
+13. Tenax Protocol. Economic simulation, `simulation/results/economic_simulation.md`.
 
 ---
 
@@ -692,12 +729,13 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Question | Absolute 24 h move above $X$ (BTC/USD, ETH/USD) | No |
 | Cadence and horizon | 1 round per asset per day; 24 h horizon | No |
 | Submission / reveal windows | 30 min / 48 h | Within bounds (section 3.8) |
-| $\beta$ and $\gamma$ (threshold and base rate) | 1/30 | No |
-| `minVe` | 1,000 veTENAX | No |
-| Aggregation weight factor $K$ | 4 | No |
+| $\beta$ (threshold) and $\gamma$ (base rate) | 1/30 and 1/365 | No |
+| Initial $X$ and $b$ | Computed from the last year of prices | No |
+| `minVe` | 5,000 veTENAX | No |
+| Aggregation weight factor $K$ | 50, weight capped at 2 | No |
 | Reputation EMA $\alpha$ | 1/32 | No |
 | Season length | 30 days | No |
-| Season eligibility | ≥ 20 rounds and z ≥ 1.64 | No |
+| Season eligibility | ≥ 20 rounds in the season; z ≥ 1.64 and mean skill ≥ 0.003 over the last 3 seasons | No |
 | Emission lock | ≥ 52 weeks, no early exit | No |
 | Revenue split | 40 / 40 / 20 | Within bounds (section 5.4) |
 | Permanent pool fee | 0.3% | No |
@@ -706,12 +744,12 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Treasury reserve | 20M TENAX, 1/60 per season, remainder burned | No |
 | Keeper ETH reserve | 90 days of the maximum budget | No |
 | Buyback | At most every 24 h, capped per call, max 2% deviation from the 30-min TWAP | Cap within bounds |
-| Revenue target $T_{\text{ETH}}$ | Set by the economic simulation | Within bounds |
+| Revenue target $T_{\text{ETH}}$ | 0.07 ETH per season | Within bounds |
 | Keeper reward | Gas × 1.5, capped | Caps within bounds |
 | Emission epoch | 2,628,000 L1 blocks | No |
 | Emission reductions | −50%, −40%, −30%, −20%, then −15% | No |
 | Governance | 1 d delay, 5 d vote, 10% quorum, 100k threshold, 2 d timelock | Through governance |
-| Initial price range | Set by the economic simulation | Open |
+| Initial price range | From 1e-6 ETH per TENAX (100 ETH FDV) to the maximum price | No |
 
 ## Appendix B. Glossary
 
@@ -721,11 +759,11 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 - **Early exit:** withdrawing the voluntary portion before expiry, paying a burned penalty of up to 50%.
 - **Round:** one cycle of submission, horizon, resolution and reveal for a question.
 - **Threshold $X$:** the move size the question uses, equal to the moving average of recent absolute 24-hour moves.
-- **Base rate $b$:** the recent frequency with which the threshold was exceeded; the reference for measuring skill.
+- **Base rate $b$:** the frequency with which the threshold was exceeded, measured by a slow average (about one year); the reference for measuring skill.
 - **Season:** a 30-day period used to score forecasters and distribute rewards.
 - **Brier score:** the squared error between a forecast probability and the outcome; lower is better.
-- **Skill:** $b(1-b)$ minus the Brier score; positive means knowing more than the base rate.
-- **Significance test:** the requirement $z \ge 1.64$ to receive rewards, which separates skill from luck with 95% confidence.
+- **Skill:** the Brier score of answering $b$ minus the Brier score of the forecast; positive means knowing more than the base rate.
+- **Significance test:** the requirement of $z \ge 1.64$ and mean skill of at least 0.003 over the last three seasons to receive rewards, which separates skill from luck with about 95% confidence.
 - **Reputation:** the exponential moving average of a participant's skill.
 - **Aggregate:** the reputation-weighted average of all revealed forecasts in a round.
 - **Commit-reveal:** submitting a hash of a forecast first and the forecast itself later.
