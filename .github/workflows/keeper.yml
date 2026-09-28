@@ -33,8 +33,23 @@ jobs:
       - name: Install
         run: npm ci
 
+      # The participant list is scanned incrementally; its cache carries the scan over between runs.
+      - name: Restore participant cache
+        uses: actions/cache/restore@v6
+        with:
+          path: offchain/.cache
+          key: offchain-cache-${{ github.run_id }}
+          restore-keys: offchain-cache-
+
       - name: Run one pass
         run: npm run keeper -- --network base-sepolia
         env:
           RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
           KEEPER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+
+      - name: Save participant cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: offchain/.cache
+          key: offchain-cache-${{ github.run_id }}
