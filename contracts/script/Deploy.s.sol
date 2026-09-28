@@ -99,7 +99,9 @@ contract Deploy is Script {
         Config memory config = configFromEnv();
         uint256 deployBlock = block.number;
         vm.startBroadcast();
-        d = deploy(config, msg.sender);
+        // The broadcasting account, whether it comes from --private-key, --account or a hardware wallet.
+        (, address deployer,) = vm.readCallers();
+        d = deploy(config, deployer);
         vm.stopBroadcast();
         _log(d);
         _writeDeployment(d, config, deployBlock);
