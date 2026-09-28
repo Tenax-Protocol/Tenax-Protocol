@@ -1,6 +1,6 @@
 name: frontend
 
-# Checks the dApp on pull requests and publishes it to GitHub Pages from main. The hourly run refreshes the
+# Checks the dApp on pull requests and publishes it to GitHub Pages (tenax.brmz.com.br) from main. The hourly run refreshes the
 # leaderboard snapshot, which the static site serves instead of scanning events from the browser. Publishing needs
 # Settings > Pages > Source set to GitHub Actions; the secret BASE_SEPOLIA_RPC_URL is optional (the public RPC is
 # used without it).

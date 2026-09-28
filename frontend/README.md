@@ -2,7 +2,7 @@
 
 The Tenax Protocol dApp: a static site in Vite, React and TypeScript, with [wagmi](https://wagmi.sh) and [viem](https://viem.sh). It has no server; everything is read from the chain through a public RPC, except the leaderboard, which comes from a snapshot file. It targets the Base Sepolia test deployment and reads its addresses from `deployments/base-sepolia.json` and its ABIs from `offchain/src/abi`.
 
-Published at https://tenax-protocol.github.io/Tenax-Protocol/.
+Published at https://tenax.brmz.com.br.
 
 ## Pages
 
@@ -36,4 +36,4 @@ The leaderboard reads `public/data/base-sepolia.json`; generate it locally with 
 
 ## Publishing
 
-The `frontend` workflow builds the site and publishes it to GitHub Pages on every change to `main` and every hour, refreshing the leaderboard snapshot first. It needs Settings > Pages > Source set to GitHub Actions. The secret `BASE_SEPOLIA_RPC_URL` is optional; the public endpoint is used without it.
+The `frontend` workflow builds the site and publishes it to GitHub Pages on every change to `main` and every hour, refreshing the leaderboard snapshot first. It needs Settings > Pages > Source set to GitHub Actions, and the custom domain `tenax.brmz.com.br` set in the same page, with a DNS `CNAME` record pointing it to `tenax-protocol.github.io`. The secret `BASE_SEPOLIA_RPC_URL` is optional; the public endpoint is used without it.
