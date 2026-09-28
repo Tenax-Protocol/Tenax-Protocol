@@ -99,6 +99,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 - [ ] `SECURITY.md` and `TOKENOMICS.md` published
 - [ ] Full test season on Base Sepolia (forecasts, reveals, scoring, aggregate, fee collection, distribution, keepers, governance)
 - [ ] Airdrop Merkle tree generated from the test season and published
+- [ ] Chainlink BTC/USD and ETH/USD feed addresses on Base confirmed (the data feed directory currently lists SVR variants)
 - [ ] Contracts verified on mainnet
 - [ ] Pool created with the hook and the position in the `LiquidityVault` in the same transaction
 - [ ] Airdrop opened only after the pool
@@ -158,3 +159,6 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 26 | Treasury TENAX | 20M reserve released at 1/60 per season (~5 years); pays locked keeper rewards and a season top-up that shrinks as ETH revenue reaches $T_{ETH}$; unused allowance burned |
 | 27 | Airdrop leftovers | Unreceived fractions and unclaimed balances are burned |
 | 28 | Revenue target | $T_{ETH}$ = 0.07 ETH per season, about 0.07% of the launch FDV |
+| 29 | Oracle prices | Exact price at each checkpoint: the keeper names the Chainlink round (and sequencer status round) active at that timestamp and the adapter verifies it |
+| 30 | Reveal and scoring | Reveals open at the resolve time regardless of keepers; scoring is lazy, once the round resolves |
+| 31 | Missed resolution | A round with no valid resolution by the end of its reveal window can be voided by anyone |

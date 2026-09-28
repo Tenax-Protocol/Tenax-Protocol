@@ -166,12 +166,12 @@ t0                     t_commitEnd                              t_resolve     t_
 
 1. **Opening.** The round's threshold $X$ and base rate $b$ are fixed (section 3.2).
 2. **Submission.** A participant with $\text{ve} \ge \text{minVe}$ submits a commitment. Their aggregation weight for the round is fixed at this moment.
-3. **`t_commitEnd`.** Submissions close and the reference price $P_{\text{ref}}$ is recorded from the oracle.
-4. **`t_resolve`.** The closing price $P_{\text{close}}$ is recorded. With $r = P_{\text{close}} / P_{\text{ref}} - 1$, the outcome is $o = 1$ if $|r| > X$, and $o = 0$ otherwise.
-5. **Reveal.** Participants reveal their forecasts, which are scored and added to the aggregate.
+3. **`t_commitEnd`.** Submissions close. The oracle price at this exact time is the reference price $P_{\text{ref}}$.
+4. **`t_resolve`.** The oracle price at this exact time is the closing price $P_{\text{close}}$. With $r = P_{\text{close}} / P_{\text{ref}} - 1$, the outcome is $o = 1$ if $|r| > X$, and $o = 0$ otherwise.
+5. **Reveal.** From `t_resolve`, participants reveal their forecasts, which are added to the aggregate. Reveals do not wait for a keeper: each forecast is scored as soon as the round is resolved (section 3.7).
 6. **`t_revealEnd`.** The round is finalized and the aggregate is published.
 
-Recording prices and finalizing rounds are permissionless calls paid by the protocol (section 7).
+Resolving and finalizing rounds are permissionless calls paid by the protocol (section 7).
 
 ### 3.2 Threshold and base rate
 
@@ -191,10 +191,10 @@ Both values are copied into the round when it opens and never change afterwards,
 A forecast is submitted as
 
 ```math
-c = \text{keccak256}(\text{roundId},\ \text{participant},\ p,\ \text{salt})
+c = \text{keccak256}(\text{chainId},\ \text{registry},\ \text{asset},\ \text{round},\ \text{participant},\ p,\ \text{salt})
 ```
 
-and revealed only after the outcome is known. Nobody can copy a forecast before the horizon ends, and nobody can change one after seeing the result. The front-end derives the salt from a wallet signature, so the data needed to reveal can always be recomputed and is never lost.
+binding the commitment to one chain, one registry and one round, and revealed only after the outcome is known. Nobody can copy a forecast before the horizon ends, and nobody can change one after seeing the result. The front-end derives the salt from a wallet signature, so the data needed to reveal can always be recomputed and is never lost.
 
 A participant could try to reveal only the forecasts that turned out well. To prevent this, a commitment that is not revealed by `t_revealEnd` is scored as the worst possible forecast ($B = 1$). The penalty is applied lazily, on the participant's next interaction or when they claim season rewards, so no loop over participants is ever needed.
 
@@ -248,13 +248,13 @@ The aggregate is only known after the horizon ends, since forecasts stay hidden 
 
 ### 3.7 Resolution and oracle safety
 
-Prices come from Chainlink Data Feeds on Base through the `OracleAdapter`, which enforces:
+Prices come from Chainlink Data Feeds on Base through the `OracleAdapter`. A round's reference and closing prices are the Chainlink answers that were active at exactly `t_commitEnd` and `t_resolve`. The keeper resolving the round names the Chainlink round active at each time, and the adapter verifies it on-chain: that round was published at or before the time, and the next one after it. The price is therefore deterministic; a keeper can resolve late, but cannot choose the price. The adapter also enforces:
 
-- a positive answer, a valid round and an `updatedAt` within the feed's heartbeat plus 10%;
-- the L2 Sequencer Uptime Feed [10], with a grace period after the sequencer comes back online;
+- a positive answer and an `updatedAt` within the feed's heartbeat plus 10% of the checkpoint;
+- the L2 Sequencer Uptime Feed [10], verified at the same timestamp in the same way, with a grace period after the sequencer comes back online;
 - decimal normalization across feeds.
 
-A round is **voided**, with no scoring for anyone and no update to $X$ and $b$, if the oracle is stale or the sequencer is down at `t_commitEnd` or `t_resolve`.
+Rounds resolve strictly in order, so $X$ and $b$ evolve in round order. A round is **voided**, with no scoring for anyone and no update to $X$ and $b$, if either price is invalid (stale, non-positive or sequencer down), or if nobody resolves it before its reveal window closes, in which case anyone can void it.
 
 ### 3.8 Parameters
 
@@ -546,7 +546,7 @@ Every recurring task is permissionless and paid, and the treasury follows fixed 
 | Task | Executed by | Paid by |
 |---|---|---|
 | Commit and reveal | The participant | The participant (fractions of a cent on Base) |
-| Record prices, finalize rounds | Anyone | `Treasury` |
+| Resolve and finalize rounds | Anyone | `Treasury` |
 | Collect fees, distribute revenue, close seasons | Anyone | `Treasury` |
 | Front-end | Static hosting or IPFS | No cost |
 
@@ -622,6 +622,7 @@ Governance only adjusts parameters, always within the bounds written in code: th
 | Rounding errors | High-precision fixed point, rounding in the protocol's favor |
 | Wrong L1 block reads | Single official source (`L1Block`); emission can never exceed the schedule |
 | Stale or manipulated prices | Chainlink with staleness checks; voided rounds |
+| Keeper choosing a favorable price | The price is the Chainlink round active at the exact timestamp, verified on-chain |
 | Sequencer downtime | Sequencer Uptime Feed with grace period |
 | Liquidity removal | No withdrawal function exists |
 | Pool initialized by a third party | Restricted `beforeInitialize` and atomic creation |
