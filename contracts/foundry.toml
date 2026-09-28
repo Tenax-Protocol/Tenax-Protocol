@@ -12,6 +12,17 @@ bytecode_hash = "none"
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "forge-std/=lib/forge-std/src/",
+    "@uniswap/v4-core/=lib/v4-periphery/lib/v4-core/",
+    "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "permit2/=lib/v4-periphery/lib/permit2/",
+    "solmate/=lib/v4-periphery/lib/v4-core/lib/solmate/",
+]
+
+# Uniswap's PositionManager is only deployed locally in tests. It exceeds the contract size limit unless it is
+# built the way Uniswap builds it: through the IR pipeline with 500 optimizer runs.
+additional_compiler_profiles = [{ name = "posm", via_ir = true, optimizer_runs = 500 }]
+compilation_restrictions = [
+    { paths = "lib/v4-periphery/src/PositionManager.sol", via_ir = true, optimizer_runs = 500 },
 ]
 
 [profile.default.fuzz]

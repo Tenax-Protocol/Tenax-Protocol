@@ -364,8 +364,10 @@ The position NFT is minted directly to the `LiquidityVault`, which has no functi
 
 Anyone can call `collectFees()` at most once every 24 hours:
 
-- fees in **ETH** are wrapped into WETH and sent to the `RevenueRouter`;
+- fees in **ETH** are wrapped into WETH and sent to the `RevenueRouter`, which distributes them in the same call;
 - fees in **TENAX** are burned.
+
+The only call the vault makes to Uniswap's position manager decreases the position's liquidity by zero, which is how v4 collects fees. The position itself is never touched.
 
 Buys pay their fee in ETH and fund the protocol. Sells pay their fee in TENAX and reduce supply.
 
@@ -572,7 +574,7 @@ The treasury is the `Treasury` contract. It is not controlled by governance: eve
 
 **ETH reserve for keepers.** The treasury keeps, in WETH, the equivalent of 90 days of the maximum keeper budget. Keeper rewards from section 7.1 are paid from it.
 
-**Buyback and burn.** All ETH above that reserve buys back TENAX in the protocol's pool, and the purchased TENAX is burned in the same transaction. The buyback is a permissionless call, paid as a keeper task, executed at most once every 24 hours and with a maximum amount per call. To prevent anyone from manipulating the price right before the purchase, the `LaunchFeeHook` keeps a time-weighted average price (TWAP) of its own pool, and the buyback reverts if the current price deviates more than 2% from the 30-minute average. The average only guards the buyback and is never used as a price oracle.
+**Buyback and burn.** All ETH above that reserve buys back TENAX in the protocol's pool, and the purchased TENAX is burned in the same transaction. The buyback is a permissionless call, paid as a keeper task, executed at most once every 24 hours and with a maximum amount per call. To prevent anyone from manipulating the price right before the purchase, the `LaunchFeeHook` keeps a time-weighted average price (TWAP) of its own pool, and the buyback reverts if the current price deviates more than 2% from the 30-minute average. The swap also carries a price limit 2% below that average, so a buyback never moves the price further than that; whatever it cannot spend within the band stays in the treasury. The average only guards the buyback and is never used as a price oracle. The cap per call starts at 0.05 ETH, adjustable by governance within bounds.
 
 **TENAX reserve with a fixed release rate.** The 20M TENAX are released in equal allowances of 1/60 per season (about 333k), which exhausts the reserve in 60 seasons, about five years. Each season's allowance pays, in this order:
 
@@ -633,7 +635,7 @@ Governance only adjusts parameters, always within the bounds written in code: th
 | Native ETH transfers | WETH internally; native ETH only to the caller, after state updates |
 | Governance capture | 10% quorum, proposal threshold, 2-day timelock, bounded parameters, no control over funds |
 | Diverting treasury funds | No withdrawal function; the treasury only pays keepers, buys back and tops up seasons, by rule |
-| Manipulating the price before a buyback | At most one buyback per 24 h, capped per call, reverted if the price deviates more than 2% from the 30-min TWAP |
+| Manipulating the price before a buyback | At most one buyback per 24 h, capped per call, reverted if the price deviates more than 2% from the 30-min TWAP; the swap stops 2% below the TWAP |
 | Signature replay | EIP-712 domain with chain ID; nonces |
 | Launch sniping | Launch fee decaying from 20% to 0.3% over 300 blocks |
 | Draining keeper funds | Per-task interval, per-call cap, monthly budget, capped gas price |
@@ -749,7 +751,7 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Fee collection interval | 24 h | No |
 | Treasury reserve | 20M TENAX, 1/60 per season, remainder burned | No |
 | Keeper ETH reserve | 90 days of the maximum budget | No |
-| Buyback | At most every 24 h, capped per call, max 2% deviation from the 30-min TWAP | Cap within bounds |
+| Buyback | At most every 24 h, capped per call (initially 0.05 ETH), max 2% deviation from the 30-min TWAP | Cap within bounds |
 | Revenue target $T_{\text{ETH}}$ | 0.07 ETH per season | Within bounds |
 | Keeper reward | Gas × 1.5, capped at 0.0005 ETH per call and 0.02 ETH per 30 days; 250 locked TENAX when there is no WETH | Caps within bounds |
 | Emission epoch | 2,628,000 L1 blocks | No |
