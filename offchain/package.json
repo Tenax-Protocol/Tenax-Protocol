@@ -15,7 +15,8 @@
     "keeper": "tsx src/keeper/main.ts",
     "airdrop": "tsx src/airdrop/main.ts",
     "rehearsal": "tsx src/rehearsal/main.ts",
-    "fixture": "tsx src/airdrop/fixture.ts"
+    "fixture": "tsx src/airdrop/fixture.ts",
+    "snapshot": "tsx src/site/snapshot.ts"
   },
   "dependencies": {
     "viem": "2.56.9"

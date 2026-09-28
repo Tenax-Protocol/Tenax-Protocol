@@ -24,11 +24,17 @@ npm test
 
 Environment: `RPC_URL` and `KEEPER_PRIVATE_KEY`. On GitHub, the `keeper` workflow runs a pass every 10 minutes once the repository variable `KEEPER_ENABLED` is `true` and the secrets `BASE_SEPOLIA_RPC_URL` and `KEEPER_PRIVATE_KEY` are set. Use a key that only ever holds testnet funds.
 
+The list of participants comes from the registry's `Committed` events, queried in chunks of 1,000 blocks (the most the public Base endpoints accept; set `LOG_CHUNK` for a dedicated RPC). The accounts found and the next block to scan are cached in `offchain/.cache/<network>-participants.json`, so each run only queries new blocks; the workflows carry the cache between runs.
+
 ## Airdrop
 
 `npm run airdrop -- --network base-sepolia --seasons 0` builds the airdrop from the test season and writes `airdrop/<network>.json` with the Merkle root and every recipient's proof. Participants must pass the season reward tests (at least 20 scored rounds, mean skill of at least 0.003 and z of at least 1.64) over the whole test season. The 10,000,000 TENAX are split half in equal parts and half in proportion to each one's skill. Participants with unsettled commitments are listed as a warning, since their stats are not final until settled. Needs `RPC_URL`.
 
 `npm run fixture` regenerates `contracts/test/fixtures/airdrop-tree.json`, a fixed tree that a Solidity test claims against `MerkleAirdrop` to prove the encoding matches.
+
+## Leaderboard snapshot
+
+`npm run snapshot -- --network base-sepolia` writes `frontend/public/data/<network>.json`: every participant with their reputation and their scored rounds, skill and contribution in each season. The dApp serves this file for its leaderboard, since a browser cannot scan the registry's events through a public RPC. The `frontend` workflow rebuilds it every hour before publishing the site. Needs `RPC_URL`.
 
 ## Rehearsal
 

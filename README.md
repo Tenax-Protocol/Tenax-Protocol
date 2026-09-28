@@ -41,7 +41,7 @@ Details in the [implementation plan](docs/IMPLEMENTATION.md).
 
 ## Stack
 
-Solidity 0.8.26, Foundry, OpenZeppelin Contracts v5, Uniswap v4, Chainlink Data Feeds, Slither and Aderyn. Keeper bot and season tools in TypeScript and viem ([offchain/](offchain/)). Front-end in Vite, React, TypeScript, wagmi and viem.
+Solidity 0.8.26, Foundry, OpenZeppelin Contracts v5, Uniswap v4, Chainlink Data Feeds, Slither and Aderyn. Keeper bot and season tools in TypeScript and viem ([offchain/](offchain/)). Front-end in Vite, React, TypeScript, wagmi and viem ([frontend/](frontend/)), live on the test deployment at https://tenax-protocol.github.io/Tenax-Protocol/.
 
 ## License
 
