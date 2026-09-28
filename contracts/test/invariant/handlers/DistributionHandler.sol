@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import {MerkleAirdrop} from "../../../src/distribution/MerkleAirdrop.sol";
 import {SeasonRewards} from "../../../src/distribution/SeasonRewards.sol";
 import {VotingEscrow} from "../../../src/escrow/VotingEscrow.sol";
+import {Treasury} from "../../../src/revenue/Treasury.sol";
 import {TenaxToken} from "../../../src/token/TenaxToken.sol";
 import {MockL1Block} from "../../mocks/MockL1Block.sol";
 import {MockSeasonRegistry} from "../../mocks/MockSeasonRegistry.sol";
@@ -11,14 +12,20 @@ import {MockWETH} from "../../mocks/MockWETH.sol";
 import {MerkleHelper} from "../../utils/MerkleHelper.sol";
 import {Test} from "forge-std/Test.sol";
 
-/// @dev Drives season rewards and the airdrop through random valid sequences over many seasons, sharing one
-/// vote escrow, and tracks everything paid, delivered, burned and withdrawn. Actors never lock on their own, so
-/// every TENAX they hold must have come out of an expired lock.
+/// @dev Drives season rewards, the treasury and the airdrop through random valid sequences over many seasons,
+/// sharing one vote escrow, and tracks everything paid, delivered, burned and withdrawn. Registrations and season
+/// closings run through the treasury as paid keeper tasks. Actors and the keeper never lock on their own, so every
+/// TENAX they hold must have come out of an expired lock.
 contract DistributionHandler is Test {
     uint256 internal constant GENESIS = 1_799_971_200;
     uint256 internal constant SEASON = 30 days;
 
+    uint256 internal constant REGISTER_TASK = 0;
+    uint256 internal constant CLOSE_TASK = 1;
+
     SeasonRewards public immutable rewards;
+    Treasury public immutable treasury;
+    address public immutable keeper;
     MerkleAirdrop public immutable airdrop;
     VotingEscrow public immutable escrow;
     TenaxToken public immutable tenax;
@@ -44,6 +51,8 @@ contract DistributionHandler is Test {
 
     constructor(
         SeasonRewards rewards_,
+        Treasury treasury_,
+        address keeper_,
         MerkleAirdrop airdrop_,
         MockSeasonRegistry registry_,
         MockL1Block l1_,
@@ -53,6 +62,8 @@ contract DistributionHandler is Test {
         uint256[] memory airdropAmounts_
     ) {
         rewards = rewards_;
+        treasury = treasury_;
+        keeper = keeper_;
         airdrop = airdrop_;
         escrow = rewards_.escrow();
         tenax = TenaxToken(address(rewards_.token()));
@@ -74,7 +85,7 @@ contract DistributionHandler is Test {
     // --- operations ----------------------------------------------------------------
 
     function depositEth(uint256 amount) external {
-        amount = bound(amount, 1, 10 ether);
+        amount = bound(amount, 1, 0.1 ether); // around the 0.07 ETH revenue target, so top-ups vary
         vm.prank(depositor);
         rewards.depositEth(amount);
         ghostDeposited += amount;
@@ -102,7 +113,7 @@ contract DistributionHandler is Test {
             address actor = actors[(seed + i) % actors.length];
             if (registry.contributionOf(actor, season) == 0) continue;
             if (rewards.registrationOf(season, actor).contribution != 0) continue;
-            rewards.register(actor, season);
+            _runTask(REGISTER_TASK, abi.encodeCall(SeasonRewards.register, (actor, season)));
             _record("register");
         }
     }
@@ -110,7 +121,7 @@ contract DistributionHandler is Test {
     function closeSeason() external {
         uint256 season = rewards.nextSeasonToClose();
         if (vm.getBlockTimestamp() < rewards.registrationStart(season) + rewards.REGISTRATION_PERIOD()) return;
-        rewards.closeSeason(season);
+        _runTask(CLOSE_TASK, abi.encodeCall(SeasonRewards.closeSeason, (season)));
         _record("closeSeason");
     }
 
@@ -168,6 +179,16 @@ contract DistributionHandler is Test {
     }
 
     // --- helpers -------------------------------------------------------------------
+
+    /// @dev Runs a task through the treasury with a realistic Base gas price. The treasury holds no WETH here,
+    /// so the keeper is paid in locked TENAX from the season allowance.
+    function _runTask(uint256 taskId, bytes memory data) internal {
+        _withdrawIfExpired(keeper);
+        vm.fee(0.005 gwei);
+        vm.txGasPrice(0.006 gwei);
+        vm.prank(keeper);
+        treasury.execute(taskId, data);
+    }
 
     function _claimReward(address actor, uint256 season, bool asEth) internal {
         _withdrawIfExpired(actor);

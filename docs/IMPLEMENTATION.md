@@ -17,7 +17,8 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 2 | VotingEscrow | Slope/bias invariants and differential tests; early exit (`withdrawEarly`, `grantedAmount`, penalty burn) |
 | 3 | OracleAdapter + ForecastRegistry + BrierMath | Fork tests; threshold and base rate updates; scoring, significance and aggregate invariants |
 | 4 | EmissionSchedule + SeasonRewards + MerkleAirdrop + CreatorVesting | Emission ≤ schedule; nothing is liquid |
-| 5 | LiquidityVault + RevenueRouter + FeeDistributor + Treasury | End-to-end fee flow on a fork; buyback, reserve allowance and burns |
+| 5a | RevenueRouter + FeeDistributor + Treasury | Revenue split, weekly fee distribution, keeper payments, reserve allowance, top-up and burns |
+| 5b | LiquidityVault + buyback | End-to-end fee flow on a fork; buyback and burn with the TWAP guard |
 | 6 | TenaxGovernor + Timelock | Full proposal flow |
 | 7 | LaunchFeeHook + launch script | Fork test with the real PoolManager; TWAP guard |
 | 8 | Security review | `SECURITY.md` |
@@ -60,6 +61,8 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   │   ├── distribution/EmissionSchedule.sol
 │   │   ├── distribution/MerkleAirdrop.sol
 │   │   ├── distribution/CreatorVesting.sol
+│   │   ├── interfaces/IWETH.sol
+│   │   ├── interfaces/ISeasonTreasury.sol
 │   │   ├── governance/TenaxGovernor.sol
 │   │   └── hooks/LaunchFeeHook.sol
 │   ├── test/ (unit/ fuzz/ invariant/ fork/)
@@ -79,8 +82,8 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 1. Safe (existing) and `TimelockController`.
 2. `TenaxToken`, minting the supply to the script address.
-3. `VotingEscrow`, `OracleAdapter`, `ForecastRegistry`, `FeeDistributor`, `SeasonRewards`, `RevenueRouter`, `Treasury`, `LiquidityVault`, `MerkleAirdrop` (closed), `CreatorVesting`, `TenaxGovernor`.
-4. Authorize `SeasonRewards` and `MerkleAirdrop` on `createLockFor`.
+3. `VotingEscrow`, `OracleAdapter`, `ForecastRegistry`, `Treasury`, `SeasonRewards`, `FeeDistributor`, `RevenueRouter`, `LiquidityVault`, `MerkleAirdrop` (closed), `CreatorVesting`, `TenaxGovernor`.
+4. Authorize `SeasonRewards`, `MerkleAirdrop` and `Treasury` on `createLockFor`, and initialize the `Treasury` with `SeasonRewards` and the keeper task list.
 5. Transfer allocations according to the tokenomics.
 6. Configure Timelock roles and renounce the deployer's admin role.
 7. Mine the salt and deploy `LaunchFeeHook`.
@@ -166,3 +169,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 32 | Season reward accounting | Registration, then claim: from 8 d 6 h after a season ends, anyone registers eligible participants for 7 days, settling their scores; the budget is then fixed and split by the exact sum of registered contributions; with no registrations it carries over to the next season |
 | 33 | Airdrop claim period | 90 days after opening; unclaimed balances are then burned |
 | 34 | Creator vesting | `CreatorVesting` on OpenZeppelin's `VestingWallet`: 365-day cliff, then linear over 730 days |
+| 35 | Phase 5 split | 5a: revenue router, fee distributor and treasury; 5b: liquidity vault and buyback on Uniswap v4 |
+| 36 | Keeper payment | Tasks run through `Treasury.execute` against a task list fixed at deployment; the treasury measures the gas and pays; the underlying functions stay permissionless and unpaid |
+| 37 | Keeper parameters | Initial values: 0.01 gwei maximum tip (bound 1 gwei), 0.0005 ETH per call (0.00001 to 0.01), 0.02 ETH per 30 days (0.001 to 1), 250 TENAX fallback (up to 2,500); revenue target bounds 0.01 to 10 ETH |
+| 38 | Reserve settlement | `SeasonRewards` settles each season's allowance with the treasury when it closes the season; TENAX keeper rewards draw on the allowance of the season in progress |
