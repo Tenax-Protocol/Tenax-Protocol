@@ -66,9 +66,10 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   │   ├── interfaces/IPriceObserver.sol
 │   │   ├── governance/TenaxGovernor.sol
 │   │   ├── governance/TenaxTimelock.sol
-│   │   └── hooks/LaunchFeeHook.sol
+│   │   ├── hooks/LaunchFeeHook.sol
+│   │   └── launch/PoolLauncher.sol
 │   ├── test/ (unit/ fuzz/ invariant/ fork/)
-│   ├── script/ (Deploy.s.sol, LaunchPool.s.sol)
+│   ├── script/Deploy.s.sol
 │   └── foundry.toml
 ├── simulation/                 # economic and scoring model
 ├── frontend/                   # Vite + React + TypeScript
@@ -76,7 +77,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 └── README.md
 ```
 
-**Toolchain:** Solidity 0.8.26 (`evm_version = cancun`), OpenZeppelin Contracts v5.x, Uniswap v4 (`v4-periphery` 1.0.1 with its `v4-core`), Foundry, Slither, Aderyn. The hook address salt is mined with `HookMiner`. Local tests simulate the OP Stack predeploys with `vm.etch` and `vm.mockCall`.
+**Toolchain:** Solidity 0.8.26 (`evm_version = cancun`), OpenZeppelin Contracts v5.x, Uniswap v4 (`v4-periphery` 1.0.1 with its `v4-core`), Foundry, Slither, Aderyn. The hook address salt is mined in the deploy script for the standard CREATE2 factory. Local tests simulate the OP Stack predeploys with `vm.etch` and `vm.mockCall`.
 
 ---
 
@@ -86,10 +87,10 @@ Each phase is developed on its own branch and is only complete when its tests pa
 2. `TenaxToken`, minting the supply to the script address.
 3. `VotingEscrow`, `OracleAdapter`, `ForecastRegistry`, `Treasury`, `SeasonRewards`, `FeeDistributor`, `RevenueRouter`, `LiquidityVault`, `MerkleAirdrop` (closed), `CreatorVesting`, `TenaxGovernor`.
 4. Authorize `SeasonRewards`, `MerkleAirdrop` and `Treasury` on `createLockFor`, and initialize the `Treasury` with `SeasonRewards` and the keeper task list.
-5. Transfer allocations according to the tokenomics.
+5. Transfer allocations according to the tokenomics; the 20M of initial liquidity go to the `PoolLauncher`.
 6. Configure the timelock roles (the governor proposes and cancels, the Safe cancels, anyone executes) and renounce the deployer's admin role.
-7. Mine the salt and deploy `LaunchFeeHook`.
-8. Create the pool and the single-sided TENAX position in a single transaction, with the position NFT minted straight to the `LiquidityVault`; then register the position in the vault and the pool and its hook in the `Treasury`.
+7. Mine the salt and deploy `LaunchFeeHook`, which only lets the `PoolLauncher` initialize the pool.
+8. Through the `PoolLauncher`, create the pool and the single-sided TENAX position in a single transaction, with the position NFT minted straight to the `LiquidityVault`; then register the position in the vault and the pool and its hook in the `Treasury`.
 9. Open the airdrop claim.
 10. Verify all contracts on Basescan.
 
@@ -103,6 +104,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 - [ ] Tests passing, ≥ 95% coverage on core contracts
 - [ ] Slither/Aderyn with no open critical findings
 - [ ] `SECURITY.md` and `TOKENOMICS.md` published
+- [ ] Deploy script rehearsed on an Anvil fork of Base and on Base Sepolia
 - [ ] Full test season on Base Sepolia (forecasts, reveals, scoring, aggregate, fee collection, distribution, keepers, governance)
 - [ ] Airdrop Merkle tree generated from the test season and published
 - [ ] Uniswap v4 `PoolManager` and `PositionManager` addresses on Base confirmed
@@ -183,3 +185,8 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 43 | Safe role | Guardian only: cancels any proposal, queued ones included, but never proposes; governance can replace or remove it |
 | 44 | Governance bounds | Voting delay 1 h to 7 d, voting period 1 to 14 d, threshold 10k to 1M veTENAX, quorum 4% to 30%, timelock delay 1 to 14 d |
 | 45 | Timelock roles | The governor proposes and cancels, the Safe cancels, anyone executes; the timelock is its own admin after the deployer renounces |
+| 46 | Launch protection | Decaying launch fee only; no per-swap size limit |
+| 47 | Pool creation | `PoolLauncher` is the only account the hook lets initialize the pool, once; it creates the pool and mints the position to the vault in the same transaction |
+| 48 | Average price | Cumulative tick updated before the first swap of each block; 128 observations at least 30 s apart; exact between observations when no swap happened in between, interpolated otherwise |
+| 49 | Deployment | One script (`Deploy.s.sol`) runs every step; the hook salt is mined for the standard CREATE2 factory; rehearsed with a full broadcast on an Anvil fork of Base |
+| 50 | Keeper task list | Resolve, void and finalize rounds; register forecasters and close seasons; collect fees, buy back and distribute revenue (the last three at most once a day) |

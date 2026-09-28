@@ -122,7 +122,7 @@ flowchart TB
 | Vote escrow | `VotingEscrow` | Locks TENAX, tracks veTENAX balances and burns early exit penalties |
 | Forecasting | `ForecastRegistry` | Rounds, threshold and base rate, commit-reveal, scoring, reputation and aggregation |
 | Oracle | `OracleAdapter` | Validated Chainlink prices with sequencer uptime checks |
-| Launch | `LaunchFeeHook` | Restricted pool initialization, decaying launch fee and a TWAP that guards buybacks |
+| Launch | `LaunchFeeHook`, `PoolLauncher` | Restricted pool initialization, decaying launch fee and a TWAP that guards buybacks; atomic pool and position creation |
 | Liquidity | `LiquidityVault` | Permanent owner of the pool position; collects and routes fees |
 | Revenue | `RevenueRouter`, `FeeDistributor` | Splits ETH revenue; pays weekly shares to veTENAX holders |
 | Rewards | `SeasonRewards`, `EmissionSchedule` | Pays forecasters with significant skill; releases emissions by L1 block |
@@ -344,7 +344,7 @@ With 3 months left, the penalty is about 12.5%; with 6 months, 25%; with a year 
 
 ### 5.1 Launch
 
-TENAX launches in a Uniswap v4 [9] pool paired with native ETH. The pool and its initial position are created in a single transaction, and a hook restricts initialization to the authorized deployer, so nobody can front-run the launch with a pool at a different price.
+TENAX launches in a Uniswap v4 [9] pool paired with native ETH. The pool and its initial position are created in a single transaction by the `PoolLauncher`, and the pool's hook lets only that contract initialize it, once, so nobody can front-run the launch with a pool at a different price or reuse the hook for another pool.
 
 **Single-sided liquidity.** The initial position holds only TENAX, concentrated in a range above the initial price, so launching requires no ETH. The pool's ETH comes from the first buyers. The lower bound of the range sets the initial price in ETH and therefore the initial fully diluted valuation. The range runs from 1e-6 ETH per TENAX, a 100 ETH FDV, up to the pool's maximum price, so the position never runs out of TENAX to sell (section 6.7). Since it starts entirely in TENAX, the protocol's pool has no liquidity below the launch price: if the price returns to it, further sells only execute in other pools.
 
@@ -354,7 +354,9 @@ TENAX launches in a Uniswap v4 [9] pool paired with native ETH. The pool and its
 f(n) = f_0 - (f_0 - f_\infty) \cdot \frac{\min(n,\ N)}{N}, \qquad f_0 = 20\%,\ \ f_\infty = 0.3\%,\ \ N = 300
 ```
 
-where $n$ is the number of Base blocks since launch, so the decay takes about 10 minutes. A per-swap size limit can also be applied during the first blocks.
+where $n$ is the number of Base blocks since launch, so the decay takes about 10 minutes. There is no per-swap size limit: it would be easy to split across wallets and would only get in the way of legitimate early buyers.
+
+**Average price.** The same hook keeps the time-weighted average of the pool's tick, in the style of Uniswap v3's oracle: before the first swap of each block, the tick that held since the last update is added to a cumulative sum weighted by time, and the sum is kept in a ring of 128 observations at least 30 seconds apart, covering at least 64 minutes. The 30-minute average is only used to guard buybacks (section 7.2).
 
 **Permanent 0.3% fee.** This is the market-standard fee, and the choice is deliberate. Since TENAX is a plain token, anyone can create other TENAX/ETH pools, and routers send each order wherever it is cheapest. A higher fee would not increase revenue; it would only push volume away from the protocol's pool.
 
