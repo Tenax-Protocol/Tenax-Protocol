@@ -128,7 +128,7 @@ flowchart TB
 | Rewards | `SeasonRewards`, `EmissionSchedule` | Pays forecasters with significant skill; releases emissions by L1 block |
 | Distribution | `MerkleAirdrop`, `CreatorVesting` | Locked airdrop; creator vesting |
 | Treasury | `Treasury` | Pays keepers, releases the TENAX reserve at a fixed rate, and buys back and burns TENAX with surplus ETH |
-| Governance | `TenaxGovernor`, `TimelockController` | Bounded parameter changes |
+| Governance | `TenaxGovernor`, `TenaxTimelock` | Bounded parameter changes |
 
 ### 2.3 Value cycle
 
@@ -593,15 +593,17 @@ The allowance is settled when `SeasonRewards` closes the season, about 15 days a
 
 ## 8. Governance
 
-Governance runs on OpenZeppelin's `Governor` with voting power read from the vote escrow, and a `TimelockController` that executes proposals. A Safe multisig acts as initial proposer and guardian, with a plan to reduce that role over time.
+Governance runs on OpenZeppelin's `Governor` with voting power read from the vote escrow, measured in time like the escrow itself, and a timelock that executes proposals. Anyone can execute a proposal once its delay has passed. A Safe multisig acts as **guardian**: it can cancel any proposal, including one already queued in the timelock, but it cannot propose, so every change goes through a vote. Governance can replace or remove the guardian. Proposers can also cancel their own proposals before voting starts.
 
-| Parameter | Value |
-|---|---|
-| Voting delay | 1 day |
-| Voting period | 5 days |
-| Quorum | 10% of veTENAX supply at snapshot |
-| Proposal threshold | 100,000 veTENAX (0.1% of supply) |
-| Timelock delay | 2 days |
+| Parameter | Value | Bounds |
+|---|---|---|
+| Voting delay | 1 day | 1 hour to 7 days |
+| Voting period | 5 days | 1 to 14 days |
+| Quorum | 10% of veTENAX supply at snapshot | 4% to 30% |
+| Proposal threshold | 100,000 veTENAX (0.1% of supply) | 10,000 to 1,000,000 veTENAX |
+| Timelock delay | 2 days | 1 to 14 days |
+
+Like every other parameter, governance's own settings can only change within these bounds, through a proposal.
 
 Governance only adjusts parameters, always within the bounds written in code: the submission and reveal windows, the revenue split, keeper rewards and caps, the revenue target $T_{\text{ETH}}$ and the maximum buyback per call. It controls no funds: it cannot spend the treasury, mint, touch protocol liquidity, change the scoring rules or upgrade contracts. With no money to divert, capturing governance is pointless. Adding new assets or question types means deploying a new `ForecastRegistry`, which users adopt voluntarily.
 
@@ -634,6 +636,7 @@ Governance only adjusts parameters, always within the bounds written in code: th
 | Reentrancy | Checks-effects-interactions, `ReentrancyGuardTransient`, `SafeERC20` |
 | Native ETH transfers | WETH internally; native ETH only to the caller, after state updates |
 | Governance capture | 10% quorum, proposal threshold, 2-day timelock, bounded parameters, no control over funds |
+| A harmful proposal passes | The guardian Safe can cancel it until it executes, including during the timelock delay |
 | Diverting treasury funds | No withdrawal function; the treasury only pays keepers, buys back and tops up seasons, by rule |
 | Manipulating the price before a buyback | At most one buyback per 24 h, capped per call, reverted if the price deviates more than 2% from the 30-min TWAP; the swap stops 2% below the TWAP |
 | Signature replay | EIP-712 domain with chain ID; nonces |
@@ -756,7 +759,7 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Keeper reward | Gas × 1.5, capped at 0.0005 ETH per call and 0.02 ETH per 30 days; 250 locked TENAX when there is no WETH | Caps within bounds |
 | Emission epoch | 2,628,000 L1 blocks | No |
 | Emission reductions | −50%, −40%, −30%, −20%, then −15% | No |
-| Governance | 1 d delay, 5 d vote, 10% quorum, 100k threshold, 2 d timelock | Through governance |
+| Governance | 1 d delay, 5 d vote, 10% quorum, 100k threshold, 2 d timelock | Through governance, within bounds (section 8) |
 | Initial price range | From 1e-6 ETH per TENAX (100 ETH FDV) to the maximum price | No |
 
 ## Appendix B. Glossary
