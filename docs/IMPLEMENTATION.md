@@ -16,7 +16,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 1 | TenaxToken + ERC-3009 | Unit and fuzz tests passing |
 | 2 | VotingEscrow | Slope/bias invariants and differential tests; early exit (`withdrawEarly`, `grantedAmount`, penalty burn) |
 | 3 | OracleAdapter + ForecastRegistry + BrierMath | Fork tests; threshold and base rate updates; scoring, significance and aggregate invariants |
-| 4 | EmissionSchedule + SeasonRewards + MerkleAirdrop + VestingWallet | Emission ≤ schedule; nothing is liquid |
+| 4 | EmissionSchedule + SeasonRewards + MerkleAirdrop + CreatorVesting | Emission ≤ schedule; nothing is liquid |
 | 5 | LiquidityVault + RevenueRouter + FeeDistributor + Treasury | End-to-end fee flow on a fork; buyback, reserve allowance and burns |
 | 6 | TenaxGovernor + Timelock | Full proposal flow |
 | 7 | LaunchFeeHook + launch script | Fork test with the real PoolManager; TWAP guard |
@@ -59,6 +59,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   │   ├── distribution/SeasonRewards.sol
 │   │   ├── distribution/EmissionSchedule.sol
 │   │   ├── distribution/MerkleAirdrop.sol
+│   │   ├── distribution/CreatorVesting.sol
 │   │   ├── governance/TenaxGovernor.sol
 │   │   └── hooks/LaunchFeeHook.sol
 │   ├── test/ (unit/ fuzz/ invariant/ fork/)
@@ -78,7 +79,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 1. Safe (existing) and `TimelockController`.
 2. `TenaxToken`, minting the supply to the script address.
-3. `VotingEscrow`, `OracleAdapter`, `ForecastRegistry`, `FeeDistributor`, `SeasonRewards`, `RevenueRouter`, `Treasury`, `LiquidityVault`, `MerkleAirdrop` (closed), `VestingWallet`, `TenaxGovernor`.
+3. `VotingEscrow`, `OracleAdapter`, `ForecastRegistry`, `FeeDistributor`, `SeasonRewards`, `RevenueRouter`, `Treasury`, `LiquidityVault`, `MerkleAirdrop` (closed), `CreatorVesting`, `TenaxGovernor`.
 4. Authorize `SeasonRewards` and `MerkleAirdrop` on `createLockFor`.
 5. Transfer allocations according to the tokenomics.
 6. Configure Timelock roles and renounce the deployer's admin role.
@@ -119,7 +120,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 - **Forecast:** open rounds with their threshold $X$ and base rate $b$, submit a probability (commit with a signature-derived salt), reminders and a reveal button
 - **Leaderboard:** skill and significance ($z$) per season, eligibility status and history per participant
 - **Aggregate:** public history of the aggregate forecast vs. outcomes, and the aggregate's Brier score
-- **Revenue:** claimable ETH (holders and forecasters) and locked TENAX rewards
+- **Revenue:** claimable ETH (holders and forecasters) and locked TENAX rewards; season registration status and claims
 - **Keepers:** pending tasks and the reward for each
 - **Token dashboard:** supply, burned (by source), locked, liquid supply, fees collected
 - **Treasury:** ETH reserve, buybacks, current season allowance, top-up and amount to be burned
@@ -162,3 +163,6 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 29 | Oracle prices | Exact price at each checkpoint: the keeper names the Chainlink round (and sequencer status round) active at that timestamp and the adapter verifies it |
 | 30 | Reveal and scoring | Reveals open at the resolve time regardless of keepers; scoring is lazy, once the round resolves |
 | 31 | Missed resolution | A round with no valid resolution by the end of its reveal window can be voided by anyone |
+| 32 | Season reward accounting | Registration, then claim: from 8 d 6 h after a season ends, anyone registers eligible participants for 7 days, settling their scores; the budget is then fixed and split by the exact sum of registered contributions; with no registrations it carries over to the next season |
+| 33 | Airdrop claim period | 90 days after opening; unclaimed balances are then burned |
+| 34 | Creator vesting | `CreatorVesting` on OpenZeppelin's `VestingWallet`: 365-day cliff, then linear over 730 days |

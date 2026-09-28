@@ -87,7 +87,7 @@ flowchart TB
 
     subgraph Distribution
         M[MerkleAirdrop]
-        V[VestingWallet]
+        V[CreatorVesting]
     end
 
     subgraph Governance
@@ -126,7 +126,7 @@ flowchart TB
 | Liquidity | `LiquidityVault` | Permanent owner of the pool position; collects and routes fees |
 | Revenue | `RevenueRouter`, `FeeDistributor` | Splits ETH revenue; pays weekly shares to veTENAX holders |
 | Rewards | `SeasonRewards`, `EmissionSchedule` | Pays forecasters with significant skill; releases emissions by L1 block |
-| Distribution | `MerkleAirdrop`, `VestingWallet` | Locked airdrop; creator vesting |
+| Distribution | `MerkleAirdrop`, `CreatorVesting` | Locked airdrop; creator vesting |
 | Treasury | `Treasury` | Pays keepers, releases the TENAX reserve at a fixed rate, and buys back and burns TENAX with surplus ETH |
 | Governance | `TenaxGovernor`, `TimelockController` | Bounded parameter changes |
 
@@ -196,7 +196,7 @@ c = \text{keccak256}(\text{chainId},\ \text{registry},\ \text{asset},\ \text{rou
 
 binding the commitment to one chain, one registry and one round, and revealed only after the outcome is known. Nobody can copy a forecast before the horizon ends, and nobody can change one after seeing the result. The front-end derives the salt from a wallet signature, so the data needed to reveal can always be recomputed and is never lost.
 
-A participant could try to reveal only the forecasts that turned out well. To prevent this, a commitment that is not revealed by `t_revealEnd` is scored as the worst possible forecast ($B = 1$). The penalty is applied lazily, on the participant's next interaction or when they claim season rewards, so no loop over participants is ever needed.
+A participant could try to reveal only the forecasts that turned out well. To prevent this, a commitment that is not revealed by `t_revealEnd` is scored as the worst possible forecast ($B = 1$). The penalty is applied lazily, on the participant's next interaction or when they are registered for season rewards, so no loop over participants is ever needed.
 
 ### 3.4 Scoring
 
@@ -413,7 +413,7 @@ Each eligible participant $i$ receives a share of the season budget $R_s$ propor
 \text{reward}_i = R_s \cdot \frac{\max(\Sigma S_i^{(s)},\ 0)}{\sum_{j\,\in\,\text{eligible}} \max(\Sigma S_j^{(s)},\ 0)}
 ```
 
-The denominator is maintained incrementally on every reveal: if the participant already counted, their old contribution is removed; if they still count or start to count, the new one is added. There is no loop over participants, and each participant claims for themselves. Lazy penalties applied at claim time can reduce a share or remove eligibility; any remainder returns to the schedule, and the contract never pays more than the budget.
+The reward is settled in three permissionless steps, with no loop over participants. Once every round of the season is resolved and its reveal window has closed (8 days and 6 hours after the season ends, at the widest windows governance can set), a 7-day **registration** period opens: anyone can register an eligible participant, which settles their pending scores, lazy penalties included, and records their final contribution. The season then **closes**, fixing its budget: the TENAX emissions accrued since the previous closing and the ETH received while the season ran. Finally, each registered participant **claims** their share. The denominator is the exact sum of registered contributions, so a season never pays more than its budget, and if nobody registers, the whole budget carries over to the next season. Registration exists because scoring is lazy: without it, a score settled after others had claimed could still change the denominator. Keepers register eligible forecasters, so nobody depends on remembering to do it.
 
 The tests are also the Sybil defense. In the backtest, wallets answering the base rate with small variations passed in no window, and always answering the historical frequency passed in about 5% of them, with a small fraction of the budget. Since each wallet requires locked `minVe`, splitting capital across many wallets does not pay.
 
@@ -432,7 +432,7 @@ The total supply is **100,000,000 TENAX**, fixed and minted once.
 | Forecaster emissions | 35% | 35,000,000 | `SeasonRewards` | By Ethereum epochs, always locked |
 | Treasury reserve | 20% | 20,000,000 | `Treasury` | 1/60 per season over ~5 years; unused allowance is burned |
 | Initial liquidity | 20% | 20,000,000 | `LiquidityVault` | At launch, permanent |
-| Creator | 15% | 15,000,000 | `VestingWallet` | 12-month cliff, then linear over 24 months |
+| Creator | 15% | 15,000,000 | `CreatorVesting` | 12-month cliff, then linear over 24 months |
 | Community airdrop | 10% | 10,000,000 | `MerkleAirdrop` | Claimed into 26 to 104-week locks |
 
 ### 6.2 Emission schedule
@@ -467,7 +467,7 @@ The first epoch is sized so that the infinite series equals the 35M bucket exact
 
 **Rationale.** The first epoch concentrates rewards when attracting forecasters is hardest. The steep early reductions avoid prolonged dilution, and the 15% floor keeps emissions meaningful for decades. Because emissions are locked for at least 52 weeks and cannot exit early, sell pressure from the first epoch cannot appear before the second year.
 
-**Measuring in L1 blocks.** On Base, `block.number` returns the L2 block (about 2 seconds). The `EmissionSchedule` instead reads the Ethereum block number from the OP Stack `L1Block` predeploy [11] at `0x4200000000000000000000000000000000000015`. Within an epoch, emission accrues linearly per L1 block, and `emittedUntil(l1Block)` is computed in constant time: a table for epochs 1 to 5, a closed-form geometric series for the floor epochs and the fraction of the current epoch. At the end of each season, `SeasonRewards` pulls whatever accrued since the previous season. Seasons are measured in time; only the emission curve is measured in blocks. All arithmetic uses 1e18 fixed point and rounds down.
+**Measuring in L1 blocks.** On Base, `block.number` returns the L2 block (about 2 seconds). The `EmissionSchedule` instead reads the Ethereum block number from the OP Stack `L1Block` predeploy [11] at `0x4200000000000000000000000000000000000015`. Within an epoch, emission accrues linearly per L1 block, and `emittedUntil(l1Block)` is computed in constant time: a table for epochs 1 to 5, a closed-form geometric series for the floor epochs and the fraction of the current epoch. When a season closes, `SeasonRewards` assigns to it whatever accrued since the previous closing. Seasons are measured in time; only the emission curve is measured in blocks. All arithmetic uses 1e18 fixed point and rounds down.
 
 Measuring in blocks has consequences that are accepted by design. If Ethereum shortens its slot time, epochs become shorter in calendar time, exactly as Bitcoin's halvings are defined in blocks rather than dates. The L1 number read on Base may lag Ethereum by a few minutes, which is irrelevant at the scale of year-long epochs. And the `L1Block` source ties the schedule to OP Stack chains.
 
@@ -483,11 +483,11 @@ Tokens are always claimed into a lock and cannot exit early. The Merkle leaf amo
 | 52 weeks | 75% |
 | 104 weeks | 100% |
 
-The unreceived fraction is burned in the same transaction, and unclaimed balances are burned after the claim deadline. The airdrop can never cost more than its 10M bucket.
+The unreceived fraction is burned in the same transaction, and unclaimed balances are burned after the 90-day claim period. The airdrop can never cost more than its 10M bucket.
 
 ### 6.4 Creator allocation
 
-The creator's 15% (15,000,000 TENAX) is their only compensation and vests through OpenZeppelin's `VestingWallet` over 36 months: nothing for the first 12 months, then linear release over the following 24, with no lump sum at the cliff. The creator commits publicly to lock at least 50% of each release in the vote escrow and to publish a monthly sell cap for the remainder before month 12, keeping all creator wallets listed.
+The creator's 15% (15,000,000 TENAX) is their only compensation and vests in the `CreatorVesting` contract, built on OpenZeppelin's `VestingWallet`, over 36 months: nothing for the first 12 months, then linear release over the following 24, with no lump sum at the cliff. The creator commits publicly to lock at least 50% of each release in the vote escrow and to publish a monthly sell cap for the remainder before month 12, keeping all creator wallets listed.
 
 ### 6.5 Supply over time
 
@@ -547,7 +547,7 @@ Every recurring task is permissionless and paid, and the treasury follows fixed 
 |---|---|---|
 | Commit and reveal | The participant | The participant (fractions of a cent on Base) |
 | Resolve and finalize rounds | Anyone | `Treasury` |
-| Collect fees, distribute revenue, close seasons | Anyone | `Treasury` |
+| Collect fees, distribute revenue, register forecasters, close seasons | Anyone | `Treasury` |
 | Front-end | Static hosting or IPFS | No cost |
 
 Keepers are refunded their gas plus a 50% margin, in WETH:
@@ -635,6 +635,7 @@ Governance only adjusts parameters, always within the bounds written in code: th
 | Signature replay | EIP-712 domain with chain ID; nonces |
 | Launch sniping | Launch fee decaying from 20% to 0.3% over 300 blocks |
 | Draining keeper funds | Per-task interval, per-call cap, monthly budget, capped gas price |
+| Late scoring changing reward shares | Registration, once every round of the season has closed, settles each participant; payouts use the exact sum of registered contributions |
 | Unbounded gas | No loops over participants; claims bounded per call |
 
 ### 9.2 Invariants
@@ -738,6 +739,8 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Season length | 30 days | No |
 | Season eligibility | ≥ 20 rounds in the season; z ≥ 1.64 and mean skill ≥ 0.003 over the last 3 seasons | No |
 | Emission lock | ≥ 52 weeks, no early exit | No |
+| Season registration | 7 days, opening 8 d 6 h after the season ends | No |
+| Airdrop claim period | 90 days, then unclaimed balances are burned | No |
 | Revenue split | 40 / 40 / 20 | Within bounds (section 5.4) |
 | Permanent pool fee | 0.3% | No |
 | Launch fee | 20% → 0.3% over 300 blocks | No |
