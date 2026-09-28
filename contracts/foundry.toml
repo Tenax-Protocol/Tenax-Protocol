@@ -9,6 +9,12 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 10_000
 bytecode_hash = "none"
+# The deploy script writes contract addresses for keepers and the front-end.
+fs_permissions = [
+    { access = "read", path = "./out" },
+    { access = "read", path = "./test/fixtures" },
+    { access = "read-write", path = "../deployments" },
+]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "forge-std/=lib/forge-std/src/",

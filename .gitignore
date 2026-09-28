@@ -35,3 +35,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local rehearsal output
+deployments/31337.json
+airdrop/31337.json

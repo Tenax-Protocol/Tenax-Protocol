@@ -477,7 +477,7 @@ Measuring in blocks has consequences that are accepted by design. If Ethereum sh
 
 ### 6.3 Airdrop
 
-The airdrop rewards participants of the public test season on Base Sepolia who pass the tests of section 5.6 applied to the whole test season, so it goes to people who have already shown forecasting ability. Claims open only after the official pool exists, which prevents early claimers from creating a pool of their own.
+The airdrop rewards participants of the public test season on Base Sepolia who pass the tests of section 5.6 applied to the whole test season, so it goes to people who have already shown forecasting ability. The 10M are split half in equal parts among them and half in proportion to each one's skill over the test season, which rewards both taking part well and forecasting better. Claims open only after the official pool exists, which prevents early claimers from creating a pool of their own.
 
 Tokens are always claimed into a lock and cannot exit early. The Merkle leaf amount is a maximum, and the fraction received depends on the lock duration chosen:
 

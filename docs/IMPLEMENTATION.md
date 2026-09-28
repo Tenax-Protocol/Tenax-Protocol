@@ -22,7 +22,8 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 6 | TenaxGovernor + Timelock | Full proposal flow |
 | 7 | LaunchFeeHook + launch script | Fork test with the real PoolManager; TWAP guard |
 | 8 | Security review | `SECURITY.md` |
-| 9 | Test season on Base Sepolia | Launch checklist (section 5) on testnet |
+| 9a | Testnet tooling | Base Sepolia deployment, keeper bot, airdrop tree builder and a full season rehearsed on a fork |
+| 9b | Public test season on Base Sepolia | Launch checklist (section 5) on testnet; starts once the front-end is live |
 | 10 | Front-end | Working dApp on testnet |
 | 11 | Mainnet launch | Launch checklist (section 5) |
 | 12 | Announcement | Technical thread on X + LinkedIn post |
@@ -72,6 +73,9 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   ├── script/Deploy.s.sol
 │   └── foundry.toml
 ├── simulation/                 # economic and scoring model
+├── offchain/                   # keeper bot, airdrop tree builder and season rehearsal (TypeScript + viem)
+├── deployments/                # contract addresses per network, written by the deploy script
+├── airdrop/                    # airdrop trees built from the test season
 ├── frontend/                   # Vite + React + TypeScript
 ├── docs/ (WHITEPAPER.md, IMPLEMENTATION.md, ARCHITECTURE.md, SECURITY.md, TOKENOMICS.md)
 └── README.md
@@ -94,7 +98,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 9. Open the airdrop claim.
 10. Verify all contracts on Basescan.
 
-**Environments:** Anvil → Base Sepolia → Base mainnet.
+**Environments:** Anvil → Base Sepolia → Base mainnet. The script picks the external addresses for Base or Base Sepolia by chain id and writes every deployed address to `deployments/<network>.json`.
 **Keys:** `cast wallet` (keystore) or a hardware wallet; never a plaintext key for mainnet.
 
 ---
@@ -107,6 +111,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 - [ ] Deploy script rehearsed on an Anvil fork of Base and on Base Sepolia
 - [ ] Full test season on Base Sepolia (forecasts, reveals, scoring, aggregate, fee collection, distribution, keepers, governance)
 - [ ] Airdrop Merkle tree generated from the test season and published
+- [ ] Initial threshold X and base rate b of each asset computed from the last year of prices
 - [ ] Uniswap v4 `PoolManager` and `PositionManager` addresses on Base confirmed
 - [ ] Chainlink BTC/USD and ETH/USD feed addresses on Base confirmed (the data feed directory currently lists SVR variants)
 - [ ] Contracts verified on mainnet
@@ -193,3 +198,9 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 51 | Guardian term | The guardian's cancel powers in the governor and the timelock expire 104 weeks after deployment, so it cannot veto its own removal indefinitely |
 | 52 | Keeper calldata | Each keeper task records its exact calldata size; padded calldata is rejected, so the L1 data refund cannot be inflated |
 | 53 | Security review | Manual review plus Slither 0.11.6 and Aderyn 0.6.8 (official Linux binary), every result triaged in `docs/SECURITY.md` |
+| 54 | Phase 9 split | 9a: testnet tooling and a rehearsed season; 9b: the public 30-day test season, once the front-end is live |
+| 55 | Keeper bot | TypeScript and viem; one pass per run, every task simulated and paid through the treasury; runs every 10 minutes on GitHub Actions with a testnet-only key |
+| 56 | Airdrop allocation | Half in equal parts among eligible participants, half in proportion to their skill over the test season |
+| 57 | Testnet oracle | Base Sepolia has no sequencer uptime feed, so the check is disabled there; the Chainlink BTC/USD and ETH/USD feeds update about as often as on mainnet |
+| 58 | Keeper gas | Keeper transactions estimate gas at their real fees, plus a margin: at a zero gas price the treasury skips the refund and the estimate comes out too low |
+| 59 | Airdrop tree | Built with viem in the OpenZeppelin encoding, without a Merkle library; a Solidity test claims a fixture tree against `MerkleAirdrop` |
