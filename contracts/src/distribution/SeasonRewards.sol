@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 import {VotingEscrow} from "../escrow/VotingEscrow.sol";
 import {ForecastRegistry} from "../forecast/ForecastRegistry.sol";
+import {IEthDepositor} from "../interfaces/IEthDepositor.sol";
 import {ISeasonTreasury} from "../interfaces/ISeasonTreasury.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {EmissionSchedule} from "./EmissionSchedule.sol";
@@ -29,7 +30,7 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 ///
 /// The denominator is the exact sum of registered contributions, so the payouts of a season never exceed its
 /// budget and leave only rounding dust.
-contract SeasonRewards is ReentrancyGuardTransient {
+contract SeasonRewards is IEthDepositor, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
     using SafeERC20 for IWETH;
     using SafeCast for uint256;

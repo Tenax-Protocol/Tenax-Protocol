@@ -2,7 +2,12 @@
 pragma solidity 0.8.26;
 
 import {Deploy} from "../../script/Deploy.s.sol";
+import {MerkleAirdrop} from "../../src/distribution/MerkleAirdrop.sol";
+import {SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
+import {VotingEscrow} from "../../src/escrow/VotingEscrow.sol";
+import {ForecastRegistry} from "../../src/forecast/ForecastRegistry.sol";
 import {LiquidityVault} from "../../src/liquidity/LiquidityVault.sol";
+import {RevenueRouter} from "../../src/revenue/RevenueRouter.sol";
 import {Treasury} from "../../src/revenue/Treasury.sol";
 import {V4Swapper} from "./V4Swapper.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -109,6 +114,44 @@ abstract contract LaunchScenarios is Test {
         assertTrue(d.timelock.hasRole(d.timelock.PROPOSER_ROLE(), address(d.governor)));
         assertTrue(d.timelock.hasRole(d.timelock.CANCELLER_ROLE(), safe));
         assertFalse(d.timelock.hasRole(d.timelock.DEFAULT_ADMIN_ROLE(), address(script)));
+    }
+
+    function test_deploy_keeperTasksExpectTheirExactCalldata() public view {
+        ForecastRegistry.PriceHints memory hints;
+        bytes[8] memory calls = [
+            abi.encodeCall(ForecastRegistry.resolveRound, (0, 0, hints)),
+            abi.encodeCall(ForecastRegistry.voidExpiredRound, (0, 0)),
+            abi.encodeCall(ForecastRegistry.finalizeRound, (0, 0)),
+            abi.encodeCall(SeasonRewards.register, (address(0), 0)),
+            abi.encodeCall(SeasonRewards.closeSeason, (0)),
+            abi.encodeCall(LiquidityVault.collectFees, ()),
+            abi.encodeCall(Treasury.buyback, ()),
+            abi.encodeCall(RevenueRouter.distribute, ())
+        ];
+        for (uint256 i; i < calls.length; ++i) {
+            Treasury.Task memory task = d.treasury.task(i);
+            assertEq(task.dataLength, calls[i].length);
+            assertEq(task.selector, bytes4(calls[i]));
+        }
+    }
+
+    function test_deploy_leavesTheDeployerNoPower() public {
+        address[] memory none = new address[](0);
+        Treasury.Task[] memory noTasks = new Treasury.Task[](0);
+        vm.startPrank(address(script));
+        vm.expectRevert(VotingEscrow.DistributorsAlreadyInitialized.selector);
+        d.escrow.initializeDistributors(none);
+        vm.expectRevert(Treasury.AlreadyInitialized.selector);
+        d.treasury.initialize(d.seasonRewards, noTasks);
+        vm.expectRevert(Treasury.AlreadyInitialized.selector);
+        d.treasury.initializeMarket(config.poolManager, d.poolKey, d.hook);
+        vm.expectRevert(LiquidityVault.AlreadyInitialized.selector);
+        d.vault.initialize(d.positionId);
+        vm.expectRevert(MerkleAirdrop.AlreadyOpened.selector);
+        d.airdrop.open();
+        vm.expectRevert();
+        d.launcher.launch(d.poolKey, 138_120, address(d.vault));
+        vm.stopPrank();
     }
 
     function test_launch_feeDecaysAndFeesReachRevenue() public {

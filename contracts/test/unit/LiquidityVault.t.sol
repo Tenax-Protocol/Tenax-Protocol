@@ -196,8 +196,8 @@ contract LiquidityVaultTest is LiquidityScenarios {
             treasury
         );
         Treasury.Task[] memory tasks = new Treasury.Task[](2);
-        tasks[0] = Treasury.Task(address(vault), LiquidityVault.collectFees.selector, 1 days);
-        tasks[1] = Treasury.Task(address(treasury), Treasury.buyback.selector, 1 days);
+        tasks[0] = Treasury.Task(address(vault), LiquidityVault.collectFees.selector, 1 days, 4);
+        tasks[1] = Treasury.Task(address(treasury), Treasury.buyback.selector, 1 days, 4);
         treasury.initialize(rewards, tasks);
         address keeper = makeAddr("keeper");
         vm.fee(0.005 gwei);

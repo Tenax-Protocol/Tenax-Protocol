@@ -122,7 +122,7 @@ contract Deploy is Script {
         // 1. Timelock, with the deployer as temporary admin.
         address[] memory none = new address[](0);
         address[] memory anyone = new address[](1);
-        d.timelock = new TenaxTimelock(TIMELOCK_DELAY, none, anyone, deployer);
+        d.timelock = new TenaxTimelock(TIMELOCK_DELAY, none, anyone, deployer, c.safe);
 
         // 2-3. Token and every protocol contract.
         d.token = new TenaxToken(deployer);
@@ -209,14 +209,14 @@ contract Deploy is Script {
     /// @dev Paid keeper tasks: each can only succeed a bounded number of times, or at most once a day.
     function _keeperTasks(Deployment memory d) internal pure returns (Treasury.Task[] memory tasks) {
         tasks = new Treasury.Task[](8);
-        tasks[0] = Treasury.Task(address(d.registry), ForecastRegistry.resolveRound.selector, 0);
-        tasks[1] = Treasury.Task(address(d.registry), ForecastRegistry.voidExpiredRound.selector, 0);
-        tasks[2] = Treasury.Task(address(d.registry), ForecastRegistry.finalizeRound.selector, 0);
-        tasks[3] = Treasury.Task(address(d.seasonRewards), SeasonRewards.register.selector, 0);
-        tasks[4] = Treasury.Task(address(d.seasonRewards), SeasonRewards.closeSeason.selector, 0);
-        tasks[5] = Treasury.Task(address(d.vault), LiquidityVault.collectFees.selector, 1 days);
-        tasks[6] = Treasury.Task(address(d.treasury), Treasury.buyback.selector, 1 days);
-        tasks[7] = Treasury.Task(address(d.router), RevenueRouter.distribute.selector, 1 days);
+        tasks[0] = Treasury.Task(address(d.registry), ForecastRegistry.resolveRound.selector, 0, 196);
+        tasks[1] = Treasury.Task(address(d.registry), ForecastRegistry.voidExpiredRound.selector, 0, 68);
+        tasks[2] = Treasury.Task(address(d.registry), ForecastRegistry.finalizeRound.selector, 0, 68);
+        tasks[3] = Treasury.Task(address(d.seasonRewards), SeasonRewards.register.selector, 0, 68);
+        tasks[4] = Treasury.Task(address(d.seasonRewards), SeasonRewards.closeSeason.selector, 0, 36);
+        tasks[5] = Treasury.Task(address(d.vault), LiquidityVault.collectFees.selector, 1 days, 4);
+        tasks[6] = Treasury.Task(address(d.treasury), Treasury.buyback.selector, 1 days, 4);
+        tasks[7] = Treasury.Task(address(d.router), RevenueRouter.distribute.selector, 1 days, 4);
     }
 
     /// @dev Mines a salt for the standard CREATE2 factory and deploys the hook through it.

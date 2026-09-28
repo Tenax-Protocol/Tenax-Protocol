@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {IEthDepositor} from "../interfaces/IEthDepositor.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-/// @notice Contracts that pull WETH deposits from the router.
-interface IEthDepositor {
-    function depositEth(uint256 amount) external;
-}
 
 /// @title RevenueRouter
 /// @notice Splits the protocol's ETH revenue (as WETH) between forecasters, veTENAX holders and the treasury

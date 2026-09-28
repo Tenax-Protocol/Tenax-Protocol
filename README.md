@@ -25,6 +25,7 @@ The protocol's only revenue is the trading fee of a Uniswap v4 pool whose liquid
 
 - [Whitepaper](docs/WHITEPAPER.md): the full design, mechanism math, tokenomics, security model and risks
 - [Implementation plan](docs/IMPLEMENTATION.md): roadmap, repository layout, deployment sequence, launch checklist and decision log
+- [Security](docs/SECURITY.md): security review in audit format and how to report a vulnerability
 - [Contributing](CONTRIBUTING.md): branch, commit, pull request and code conventions
 
 ## Roadmap

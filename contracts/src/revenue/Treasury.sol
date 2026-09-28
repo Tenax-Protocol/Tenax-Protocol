@@ -49,6 +49,7 @@ contract Treasury is ISeasonTreasury, IUnlockCallback, ReentrancyGuardTransient 
         address target;
         bytes4 selector;
         uint64 minInterval;
+        uint32 dataLength; // exact calldata size; every task takes fixed-size arguments
     }
 
     struct KeeperParams {
@@ -140,13 +141,13 @@ contract Treasury is ISeasonTreasury, IUnlockCallback, ReentrancyGuardTransient 
     uint256 public totalBuybackEth;
     uint256 public totalBuybackBurned;
 
-    event Initialized(address seasonRewards, uint256 taskCount);
+    event Initialized(address indexed seasonRewards, uint256 taskCount);
     event KeeperParamsUpdated(uint256 maxTip, uint256 capPerCall, uint256 monthlyBudget, uint256 tenaxReward);
     event RevenueTargetUpdated(uint256 target);
     event TaskExecuted(uint256 indexed taskId, address indexed keeper, uint256 gasUsed);
     event KeeperPaid(address indexed keeper, uint256 indexed taskId, uint256 eth, uint256 tenax);
     event SeasonSettled(uint256 indexed season, uint256 ethReceived, uint256 topUp, uint256 burned);
-    event MarketInitialized(address poolManager, bytes32 poolId, address priceObserver);
+    event MarketInitialized(address indexed poolManager, bytes32 indexed poolId, address indexed priceObserver);
     event BuybackCapUpdated(uint256 cap);
     event Buyback(uint256 ethSpent, uint256 tenaxBurned);
 
@@ -160,7 +161,7 @@ contract Treasury is ISeasonTreasury, IUnlockCallback, ReentrancyGuardTransient 
     error NotSeasonRewards();
     error OutOfBounds();
     error UnknownTask(uint256 taskId);
-    error WrongSelector();
+    error InvalidCalldata();
     error TooSoon(uint256 nextRun);
     error NotNextSeason(uint256 expected);
     error WrongPool();
@@ -312,7 +313,11 @@ contract Treasury is ISeasonTreasury, IUnlockCallback, ReentrancyGuardTransient 
         if (address(seasonRewards) == address(0)) revert NotInitialized();
         if (taskId >= _tasks.length) revert UnknownTask(taskId);
         Task memory entry = _tasks[taskId];
-        if (data.length < 4 || bytes4(data[:4]) != entry.selector) revert WrongSelector();
+        // The exact length stops a keeper from padding the calldata, which the call would ignore but which would
+        // inflate the L1 data fee refunded to them.
+        if (data.length != entry.dataLength || data.length < 4 || bytes4(data[:4]) != entry.selector) {
+            revert InvalidCalldata();
+        }
         uint256 nextRun = lastRun[taskId] + entry.minInterval;
         if (lastRun[taskId] != 0 && block.timestamp < nextRun) revert TooSoon(nextRun);
         lastRun[taskId] = block.timestamp;

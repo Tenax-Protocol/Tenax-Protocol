@@ -554,7 +554,7 @@ Every recurring task is permissionless and paid, and the treasury follows fixed 
 | Collect fees, distribute revenue, register forecasters, close seasons | Anyone | `Treasury` |
 | Front-end | Static hosting or IPFS | No cost |
 
-Keepers run tasks through the treasury's `execute` function, which accepts only the tasks on a list fixed at deployment (one contract and one function each), runs the call, measures its gas and pays for it. The same functions stay open to anyone who calls them directly, without payment. Only tasks that can succeed a bounded number of times are on the list: each round is resolved, voided or finalized once, each eligible forecaster is registered once per season, and revenue is distributed at most once a day.
+Keepers run tasks through the treasury's `execute` function, which accepts only the tasks on a list fixed at deployment (one contract, one function and the exact calldata size each), runs the call, measures its gas and pays for it. The same functions stay open to anyone who calls them directly, without payment. Only tasks that can succeed a bounded number of times are on the list: each round is resolved, voided or finalized once, each eligible forecaster is registered once per season, and revenue is distributed at most once a day.
 
 Keepers are refunded their gas plus a 50% margin, in WETH:
 
@@ -595,7 +595,7 @@ The allowance is settled when `SeasonRewards` closes the season, about 15 days a
 
 ## 8. Governance
 
-Governance runs on OpenZeppelin's `Governor` with voting power read from the vote escrow, measured in time like the escrow itself, and a timelock that executes proposals. Anyone can execute a proposal once its delay has passed. A Safe multisig acts as **guardian**: it can cancel any proposal, including one already queued in the timelock, but it cannot propose, so every change goes through a vote. Governance can replace or remove the guardian. Proposers can also cancel their own proposals before voting starts.
+Governance runs on OpenZeppelin's `Governor` with voting power read from the vote escrow, measured in time like the escrow itself, and a timelock that executes proposals. Anyone can execute a proposal once its delay has passed. A Safe multisig acts as **guardian**: it can cancel any proposal, including one already queued in the timelock, but it cannot propose, so every change goes through a vote. Governance can replace or remove the guardian, and the guardian's power expires on its own 104 weeks after deployment, since it could otherwise cancel the very proposal that removes it. Proposers can also cancel their own proposals before voting starts, and at any time once there is no guardian.
 
 | Parameter | Value | Bounds |
 |---|---|---|
@@ -638,12 +638,12 @@ Governance only adjusts parameters, always within the bounds written in code: th
 | Reentrancy | Checks-effects-interactions, `ReentrancyGuardTransient`, `SafeERC20` |
 | Native ETH transfers | WETH internally; native ETH only to the caller, after state updates |
 | Governance capture | 10% quorum, proposal threshold, 2-day timelock, bounded parameters, no control over funds |
-| A harmful proposal passes | The guardian Safe can cancel it until it executes, including during the timelock delay |
+| A harmful proposal passes | For the first 104 weeks, the guardian Safe can cancel it until it executes, including during the timelock delay; afterwards, the timelock delay and bounded parameters remain |
 | Diverting treasury funds | No withdrawal function; the treasury only pays keepers, buys back and tops up seasons, by rule |
 | Manipulating the price before a buyback | At most one buyback per 24 h, capped per call, reverted if the price deviates more than 2% from the 30-min TWAP; the swap stops 2% below the TWAP |
 | Signature replay | EIP-712 domain with chain ID; nonces |
 | Launch sniping | Launch fee decaying from 20% to 0.3% over 300 blocks |
-| Draining keeper funds | Per-task interval, per-call cap, monthly budget, capped gas price |
+| Draining keeper funds | Per-task interval, per-call cap, monthly budget, capped gas price, exact calldata size |
 | Late scoring changing reward shares | Registration, once every round of the season has closed, settles each participant; payouts use the exact sum of registered contributions |
 | Unbounded gas | No loops over participants; claims bounded per call |
 
@@ -672,7 +672,7 @@ The following properties are tested as Foundry invariants:
 - Differential tests that compare the vote-escrow, early exit and scoring math with closed-form reference formulas over thousands of random inputs.
 - Static analysis with Slither and Aderyn, with every finding annotated.
 - A full public test season on Base Sepolia before mainnet.
-- A security report in audit format, published with the code.
+- A security report in audit format, published with the code ([SECURITY.md](SECURITY.md)).
 
 ---
 

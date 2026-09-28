@@ -208,9 +208,11 @@ contract GovernanceTest is GovernanceTestBase {
     function test_RevertWhen_timelockDelayIsOutOfBoundsAtDeployment() public {
         address[] memory none = new address[](0);
         vm.expectRevert(abi.encodeWithSelector(TenaxTimelock.DelayOutOfBounds.selector, 12 hours));
-        new TenaxTimelock(12 hours, none, none, address(0));
+        new TenaxTimelock(12 hours, none, none, address(0), safe);
         vm.expectRevert(abi.encodeWithSelector(TenaxTimelock.DelayOutOfBounds.selector, 15 days));
-        new TenaxTimelock(15 days, none, none, address(0));
+        new TenaxTimelock(15 days, none, none, address(0), safe);
+        vm.expectRevert(TenaxTimelock.ZeroAddress.selector);
+        new TenaxTimelock(2 days, none, none, address(0), address(0));
     }
 
     // --- guardian ----------------------------------------------------------------
@@ -286,6 +288,44 @@ contract GovernanceTest is GovernanceTestBase {
         governor.cancel(q.targets, q.values, q.calldatas, keccak256("c"));
         vm.prank(bob); // even while voting is open
         governor.cancel(q.targets, q.values, q.calldatas, keccak256("c"));
+        assertEq(uint8(_state(id)), uint8(IGovernor.ProposalState.Canceled));
+    }
+
+    function test_guardian_expiresOnItsOwnAfter104Weeks() public {
+        assertEq(governor.guardianExpiry(), START + 104 weeks);
+        assertEq(timelock.guardianExpiry(), START + 104 weeks);
+
+        // A queued operation the Safe could still cancel the moment before its term ends.
+        Proposal memory p = _single(address(treasury), abi.encodeCall(Treasury.setBuybackCap, (0.1 ether)), "late");
+        uint256 id = _passAndQueue(p);
+        vm.warp(START + 104 weeks);
+        assertEq(governor.proposalGuardian(), address(0));
+
+        vm.prank(safe);
+        vm.expectRevert(abi.encodeWithSelector(IGovernor.GovernorUnableToCancel.selector, id, safe));
+        governor.cancel(p.targets, p.values, p.calldatas, keccak256("late"));
+
+        bytes32 operation = timelock.hashOperationBatch(
+            p.targets, p.values, p.calldatas, 0, bytes20(address(governor)) ^ keccak256("late")
+        );
+        vm.prank(safe);
+        vm.expectRevert(TenaxTimelock.GuardianExpired.selector);
+        timelock.cancel(operation);
+
+        _execute(p);
+        assertEq(treasury.buybackCap(), 0.1 ether);
+    }
+
+    function test_guardian_termEndsProposerRestrictions() public {
+        vm.warp(START + 104 weeks);
+        address erin = makeAddr("erin");
+        _lock(erin, 1_000_000e18); // fresh voting power: the original locks have expired
+        vm.warp(vm.getBlockTimestamp() + 1);
+        Proposal memory p = _single(address(treasury), abi.encodeCall(Treasury.setBuybackCap, (0.1 ether)), "own");
+        uint256 id = _propose(erin, p);
+        _toVoting(id);
+        vm.prank(erin); // with no guardian, proposers cancel their own proposals at any point
+        governor.cancel(p.targets, p.values, p.calldatas, keccak256("own"));
         assertEq(uint8(_state(id)), uint8(IGovernor.ProposalState.Canceled));
     }
 

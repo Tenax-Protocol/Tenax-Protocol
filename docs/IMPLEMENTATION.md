@@ -190,3 +190,6 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 48 | Average price | Cumulative tick updated before the first swap of each block; 128 observations at least 30 s apart; exact between observations when no swap happened in between, interpolated otherwise |
 | 49 | Deployment | One script (`Deploy.s.sol`) runs every step; the hook salt is mined for the standard CREATE2 factory; rehearsed with a full broadcast on an Anvil fork of Base |
 | 50 | Keeper task list | Resolve, void and finalize rounds; register forecasters and close seasons; collect fees, buy back and distribute revenue (the last three at most once a day) |
+| 51 | Guardian term | The guardian's cancel powers in the governor and the timelock expire 104 weeks after deployment, so it cannot veto its own removal indefinitely |
+| 52 | Keeper calldata | Each keeper task records its exact calldata size; padded calldata is rejected, so the L1 data refund cannot be inflated |
+| 53 | Security review | Manual review plus Slither 0.11.6 and Aderyn 0.6.8 (official Linux binary), every result triaged in `docs/SECURITY.md` |
