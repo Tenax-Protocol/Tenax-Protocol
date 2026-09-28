@@ -1,0 +1,28 @@
+{
+  "name": "tenax-offchain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Keeper bot and season tools for Tenax Protocol",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "abi": "node scripts/abi.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "keeper": "tsx src/keeper/main.ts",
+    "airdrop": "tsx src/airdrop/main.ts",
+    "rehearsal": "tsx src/rehearsal/main.ts",
+    "fixture": "tsx src/airdrop/fixture.ts"
+  },
+  "dependencies": {
+    "viem": "2.56.9"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

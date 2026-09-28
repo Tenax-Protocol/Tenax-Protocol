@@ -31,8 +31,10 @@ import {Script, console} from "forge-std/Script.sol";
 /// @title Deploy
 /// @notice Deploys and launches the whole protocol (implementation plan, section 4): governance, token, escrow,
 /// forecasting, distribution, revenue, the launch hook, and the pool with its single-sided position, in that order.
-/// @dev Chain addresses and launch inputs come from the environment, with Base mainnet defaults for the external
-/// contracts. `deploy` runs the same steps without broadcasting, for tests.
+/// @dev Chain addresses and launch inputs come from the environment, with defaults for the external contracts on
+/// Base mainnet and Base Sepolia. Base Sepolia has no sequencer uptime feed, so the check is disabled there.
+/// `run` writes every address to `deployments/<network>.json` for keepers and the front-end; `deploy` runs the same
+/// steps without broadcasting, for tests.
 contract Deploy is Script {
     struct Config {
         address safe; // guardian of governance
@@ -91,24 +93,51 @@ contract Deploy is Script {
 
     address internal constant L1_BLOCK = 0x4200000000000000000000000000000000000015;
 
+    uint256 internal constant BASE_SEPOLIA = 84_532;
+
     function run() external returns (Deployment memory d) {
         Config memory config = configFromEnv();
+        uint256 deployBlock = block.number;
         vm.startBroadcast();
         d = deploy(config, msg.sender);
         vm.stopBroadcast();
         _log(d);
+        _writeDeployment(d, config, deployBlock);
     }
 
     function configFromEnv() public view returns (Config memory c) {
+        bool sepolia = block.chainid == BASE_SEPOLIA;
         c.safe = vm.envAddress("SAFE");
         c.creator = vm.envAddress("CREATOR");
         c.weth = IWETH(vm.envOr("WETH", address(0x4200000000000000000000000000000000000006)));
-        c.poolManager = IPoolManager(vm.envOr("POOL_MANAGER", address(0x498581fF718922c3f8e6A244956aF099B2652b2b)));
-        c.positionManager =
-            IPositionManager(vm.envOr("POSITION_MANAGER", address(0x7C5f5A4bBd8fD63184577525326123B519429bDc)));
-        c.btcFeed = IAggregatorV3(vm.envOr("BTC_USD_FEED", address(0x32F587986D3fb47601157c19615d568BeD0BCabc)));
-        c.ethFeed = IAggregatorV3(vm.envOr("ETH_USD_FEED", address(0xa4250cE1aA15Ff4cb5E5a8655293b65694e436Ed)));
-        c.sequencerFeed = IAggregatorV3(vm.envOr("SEQUENCER_FEED", address(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433)));
+        c.poolManager = IPoolManager(
+            vm.envOr(
+                "POOL_MANAGER",
+                sepolia ? 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408 : 0x498581fF718922c3f8e6A244956aF099B2652b2b
+            )
+        );
+        c.positionManager = IPositionManager(
+            vm.envOr(
+                "POSITION_MANAGER",
+                sepolia ? 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80 : 0x7C5f5A4bBd8fD63184577525326123B519429bDc
+            )
+        );
+        c.btcFeed = IAggregatorV3(
+            vm.envOr(
+                "BTC_USD_FEED",
+                sepolia ? 0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298 : 0x32F587986D3fb47601157c19615d568BeD0BCabc
+            )
+        );
+        c.ethFeed = IAggregatorV3(
+            vm.envOr(
+                "ETH_USD_FEED",
+                sepolia ? 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1 : 0xa4250cE1aA15Ff4cb5E5a8655293b65694e436Ed
+            )
+        );
+        // Base Sepolia has no sequencer uptime feed; the zero address disables the check.
+        c.sequencerFeed = IAggregatorV3(
+            vm.envOr("SEQUENCER_FEED", sepolia ? address(0) : 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433)
+        );
         c.staleness = uint64(vm.envOr("STALENESS", uint256(1320)));
         c.sequencerGrace = vm.envOr("SEQUENCER_GRACE", uint256(1 hours));
         c.genesis = vm.envUint("GENESIS");
@@ -237,6 +266,52 @@ contract Deploy is Script {
         (bool ok, bytes memory deployed) = CREATE2_FACTORY.call(abi.encodePacked(salt, initCode));
         require(ok && address(bytes20(deployed)) == predicted, "hook deployment failed");
         hook = LaunchFeeHook(predicted);
+    }
+
+    /// @dev Writes every address and the launch parameters that off-chain code needs.
+    function _writeDeployment(Deployment memory d, Config memory c, uint256 deployBlock) internal {
+        string memory contracts = "contracts";
+        vm.serializeAddress(contracts, "token", address(d.token));
+        vm.serializeAddress(contracts, "escrow", address(d.escrow));
+        vm.serializeAddress(contracts, "oracle", address(d.oracle));
+        vm.serializeAddress(contracts, "registry", address(d.registry));
+        vm.serializeAddress(contracts, "schedule", address(d.schedule));
+        vm.serializeAddress(contracts, "treasury", address(d.treasury));
+        vm.serializeAddress(contracts, "seasonRewards", address(d.seasonRewards));
+        vm.serializeAddress(contracts, "feeDistributor", address(d.feeDistributor));
+        vm.serializeAddress(contracts, "router", address(d.router));
+        vm.serializeAddress(contracts, "vault", address(d.vault));
+        vm.serializeAddress(contracts, "airdrop", address(d.airdrop));
+        vm.serializeAddress(contracts, "creatorVesting", address(d.creatorVesting));
+        vm.serializeAddress(contracts, "timelock", address(d.timelock));
+        vm.serializeAddress(contracts, "governor", address(d.governor));
+        vm.serializeAddress(contracts, "launcher", address(d.launcher));
+        vm.serializeAddress(contracts, "hook", address(d.hook));
+        vm.serializeAddress(contracts, "poolManager", address(c.poolManager));
+        vm.serializeAddress(contracts, "positionManager", address(c.positionManager));
+        string memory contractsJson = vm.serializeAddress(contracts, "weth", address(c.weth));
+
+        string memory pool = "poolKey";
+        vm.serializeAddress(pool, "currency0", Currency.unwrap(d.poolKey.currency0));
+        vm.serializeAddress(pool, "currency1", Currency.unwrap(d.poolKey.currency1));
+        vm.serializeUint(pool, "fee", d.poolKey.fee);
+        vm.serializeInt(pool, "tickSpacing", d.poolKey.tickSpacing);
+        string memory poolJson = vm.serializeAddress(pool, "hooks", address(d.poolKey.hooks));
+
+        string memory root = "deployment";
+        vm.serializeUint(root, "chainId", block.chainid);
+        vm.serializeUint(root, "deployBlock", deployBlock);
+        vm.serializeUint(root, "genesis", c.genesis);
+        vm.serializeUint(root, "positionId", d.positionId);
+        vm.serializeString(root, "poolKey", poolJson);
+        string memory json = vm.serializeString(root, "contracts", contractsJson);
+
+        string memory network = block.chainid == BASE_SEPOLIA
+            ? "base-sepolia"
+            : block.chainid == 8453 ? "base" : vm.toString(block.chainid);
+        string memory path = string.concat(vm.projectRoot(), "/../deployments/", network, ".json");
+        vm.writeJson(json, path);
+        console.log("Deployment written to", path);
     }
 
     function _log(Deployment memory d) internal pure {

@@ -39,8 +39,9 @@ aderyn . --src src                                                     # Aderyn 
 
 ## Deployment
 
-`script/Deploy.s.sol` deploys and launches the whole protocol in one run. External addresses default to Base mainnet
-and can be overridden (`WETH`, `POOL_MANAGER`, `POSITION_MANAGER`, `BTC_USD_FEED`, `ETH_USD_FEED`, `SEQUENCER_FEED`,
+`script/Deploy.s.sol` deploys and launches the whole protocol in one run and writes every address to
+`deployments/<network>.json`. External addresses default to Base mainnet or Base Sepolia by chain id (Base Sepolia
+has no sequencer uptime feed, so that check is disabled there) and can be overridden (`WETH`, `POOL_MANAGER`, `POSITION_MANAGER`, `BTC_USD_FEED`, `ETH_USD_FEED`, `SEQUENCER_FEED`,
 `STALENESS`, `SEQUENCER_GRACE`). The launch inputs are required:
 
 | Variable | Meaning |
