@@ -63,6 +63,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   │   ├── distribution/CreatorVesting.sol
 │   │   ├── interfaces/IWETH.sol
 │   │   ├── interfaces/ISeasonTreasury.sol
+│   │   ├── interfaces/IPriceObserver.sol
 │   │   ├── governance/TenaxGovernor.sol
 │   │   └── hooks/LaunchFeeHook.sol
 │   ├── test/ (unit/ fuzz/ invariant/ fork/)
@@ -74,7 +75,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 └── README.md
 ```
 
-**Toolchain:** Solidity 0.8.26 (`evm_version = cancun`), OpenZeppelin Contracts v5.x, Foundry, Slither, Aderyn. The hook address salt is mined with `HookMiner`. Local tests simulate the OP Stack predeploys with `vm.etch` and `vm.mockCall`.
+**Toolchain:** Solidity 0.8.26 (`evm_version = cancun`), OpenZeppelin Contracts v5.x, Uniswap v4 (`v4-periphery` 1.0.1 with its `v4-core`), Foundry, Slither, Aderyn. The hook address salt is mined with `HookMiner`. Local tests simulate the OP Stack predeploys with `vm.etch` and `vm.mockCall`.
 
 ---
 
@@ -87,7 +88,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 5. Transfer allocations according to the tokenomics.
 6. Configure Timelock roles and renounce the deployer's admin role.
 7. Mine the salt and deploy `LaunchFeeHook`.
-8. Create the pool and the single-sided TENAX position in a single transaction, with the position NFT minted straight to the `LiquidityVault`.
+8. Create the pool and the single-sided TENAX position in a single transaction, with the position NFT minted straight to the `LiquidityVault`; then register the position in the vault and the pool and its hook in the `Treasury`.
 9. Open the airdrop claim.
 10. Verify all contracts on Basescan.
 
@@ -103,6 +104,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 - [ ] `SECURITY.md` and `TOKENOMICS.md` published
 - [ ] Full test season on Base Sepolia (forecasts, reveals, scoring, aggregate, fee collection, distribution, keepers, governance)
 - [ ] Airdrop Merkle tree generated from the test season and published
+- [ ] Uniswap v4 `PoolManager` and `PositionManager` addresses on Base confirmed
 - [ ] Chainlink BTC/USD and ETH/USD feed addresses on Base confirmed (the data feed directory currently lists SVR variants)
 - [ ] Contracts verified on mainnet
 - [ ] Pool created with the hook and the position in the `LiquidityVault` in the same transaction
@@ -173,3 +175,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 36 | Keeper payment | Tasks run through `Treasury.execute` against a task list fixed at deployment; the treasury measures the gas and pays; the underlying functions stay permissionless and unpaid |
 | 37 | Keeper parameters | Initial values: 0.01 gwei maximum tip (bound 1 gwei), 0.0005 ETH per call (0.00001 to 0.01), 0.02 ETH per 30 days (0.001 to 1), 250 TENAX fallback (up to 2,500); revenue target bounds 0.01 to 10 ETH |
 | 38 | Reserve settlement | `SeasonRewards` settles each season's allowance with the treasury when it closes the season; TENAX keeper rewards draw on the allowance of the season in progress |
+| 39 | Uniswap v4 dependency | `v4-periphery` pinned at release 1.0.1 (commit `ea2bf2e`), matching the live deployment; tests deploy the position manager from its artifact, compiled through the IR pipeline |
+| 40 | Buyback price guard | Reverts unless the spot tick is at most 198 ticks (about 2%) above the 30-minute average and strictly above the swap limit 198 ticks below it; unspent ETH is wrapped back |
+| 41 | Buyback cap | 0.05 ETH per call initially, bounds 0.001 to 10 ETH |
+| 42 | Fee collection | The vault distributes collected ETH through the router in the same call; `collectFees` and `buyback` are daily keeper tasks |
