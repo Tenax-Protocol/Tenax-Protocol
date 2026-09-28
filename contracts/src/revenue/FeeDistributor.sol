@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import {VotingEscrow} from "../escrow/VotingEscrow.sol";
+import {IEthDepositor} from "../interfaces/IEthDepositor.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -14,7 +15,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 /// caching the total veTENAX at `t_w`; a week with no veTENAX at its start rolls its WETH over to the next week.
 /// Holders pull their shares, iterating over at most 52 weeks per call. Payouts are WETH, or native ETH sent to the
 /// caller after every state update.
-contract FeeDistributor is ReentrancyGuardTransient {
+contract FeeDistributor is IEthDepositor, ReentrancyGuardTransient {
     using SafeERC20 for IWETH;
 
     uint256 public constant WEEK = 1 weeks;

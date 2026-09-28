@@ -47,7 +47,7 @@ abstract contract GovernanceTestBase is Test {
 
         address[] memory none = new address[](0);
         address[] memory anyone = new address[](1); // address(0): anyone can execute
-        timelock = new TenaxTimelock(2 days, none, anyone, address(this));
+        timelock = new TenaxTimelock(2 days, none, anyone, address(this), safe);
         governor = new TenaxGovernor(IVotes(address(escrow)), timelock, safe);
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));

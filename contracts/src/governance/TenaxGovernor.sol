@@ -17,7 +17,9 @@ import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 /// @notice Governance of the protocol's bounded parameters, voted with veTENAX (whitepaper section 8).
 /// @dev OpenZeppelin's Governor reading voting power from the vote escrow, whose clock is the block timestamp, so
 /// every delay and period below is in seconds. Proposals execute through the timelock. A guardian (the Safe) can
-/// cancel any proposal but cannot propose; governance can replace or remove it.
+/// cancel any proposal but cannot propose; governance can replace or remove it, and its power expires on its own
+/// 104 weeks after deployment, since it could otherwise cancel the proposal that removes it. Without a guardian,
+/// proposers can cancel their own proposals.
 ///
 /// The governor's own settings are bounded like every other protocol parameter: voting delay from 1 hour to 7 days,
 /// voting period from 1 to 14 days, proposal threshold from 10,000 to 1,000,000 veTENAX and quorum from 4% to 30%
@@ -45,6 +47,11 @@ contract TenaxGovernor is
     uint256 public constant MIN_QUORUM_PERCENT = 4;
     uint256 public constant MAX_QUORUM_PERCENT = 30;
 
+    uint256 public constant GUARDIAN_TERM = 104 weeks;
+
+    /// @notice Time from which no guardian can cancel proposals.
+    uint256 public immutable guardianExpiry;
+
     error SettingOutOfBounds(uint256 value);
 
     /// @param escrow Vote escrow providing veTENAX voting power.
@@ -58,6 +65,12 @@ contract TenaxGovernor is
         GovernorTimelockControl(timelock)
     {
         _setProposalGuardian(guardian);
+        guardianExpiry = block.timestamp + GUARDIAN_TERM;
+    }
+
+    /// @notice The guardian, or zero once its term has expired.
+    function proposalGuardian() public view override returns (address) {
+        return block.timestamp < guardianExpiry ? super.proposalGuardian() : address(0);
     }
 
     // --- bounded settings --------------------------------------------------------

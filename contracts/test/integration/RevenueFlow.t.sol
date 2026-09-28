@@ -70,9 +70,9 @@ contract RevenueFlowTest is Test {
         );
 
         Treasury.Task[] memory tasks = new Treasury.Task[](3);
-        tasks[DISTRIBUTE] = Treasury.Task(address(router), RevenueRouter.distribute.selector, 1 days);
-        tasks[REGISTER] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0);
-        tasks[CLOSE] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0);
+        tasks[DISTRIBUTE] = Treasury.Task(address(router), RevenueRouter.distribute.selector, 1 days, 4);
+        tasks[REGISTER] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0, 68);
+        tasks[CLOSE] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0, 36);
         treasury.initialize(rewards, tasks);
 
         address[] memory distributors = new address[](2);

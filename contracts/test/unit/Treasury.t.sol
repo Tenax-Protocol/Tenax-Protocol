@@ -75,11 +75,11 @@ contract TreasuryTest is Test {
 
     function _tasks() internal view returns (Treasury.Task[] memory tasks) {
         tasks = new Treasury.Task[](5);
-        tasks[WORK] = Treasury.Task(address(target), MockTaskTarget.work.selector, 0);
-        tasks[DAILY_WORK] = Treasury.Task(address(target), MockTaskTarget.work.selector, 1 days);
-        tasks[FAIL] = Treasury.Task(address(target), MockTaskTarget.fail.selector, 0);
-        tasks[CLOSE] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0);
-        tasks[REGISTER] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0);
+        tasks[WORK] = Treasury.Task(address(target), MockTaskTarget.work.selector, 0, 36);
+        tasks[DAILY_WORK] = Treasury.Task(address(target), MockTaskTarget.work.selector, 1 days, 36);
+        tasks[FAIL] = Treasury.Task(address(target), MockTaskTarget.fail.selector, 0, 4);
+        tasks[CLOSE] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0, 36);
+        tasks[REGISTER] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0, 68);
     }
 
     function _fundWeth(uint256 amount) internal {
@@ -229,11 +229,21 @@ contract TreasuryTest is Test {
         vm.startPrank(keeper);
         vm.expectRevert(abi.encodeWithSelector(Treasury.UnknownTask.selector, 5));
         treasury.execute(5, _work(1));
-        vm.expectRevert(Treasury.WrongSelector.selector);
+        vm.expectRevert(Treasury.InvalidCalldata.selector);
         treasury.execute(WORK, abi.encodeCall(MockTaskTarget.fail, ()));
-        vm.expectRevert(Treasury.WrongSelector.selector);
+        vm.expectRevert(Treasury.InvalidCalldata.selector);
         treasury.execute(WORK, hex"0102");
         vm.stopPrank();
+    }
+
+    /// @dev Padding would be ignored by the call but would inflate the L1 data fee refunded to the keeper.
+    function test_RevertWhen_calldataIsPadded() public {
+        _fundWeth(1 ether);
+        gasOracle.setL1Fee(1e12);
+        bytes memory padded = bytes.concat(_work(1), new bytes(2000));
+        vm.prank(keeper);
+        vm.expectRevert(Treasury.InvalidCalldata.selector);
+        treasury.execute(WORK, padded);
     }
 
     function test_RevertWhen_taskRunsBeforeItsInterval() public {

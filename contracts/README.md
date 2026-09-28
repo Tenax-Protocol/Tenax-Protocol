@@ -28,6 +28,15 @@ Fork tests run against live Base mainnet contracts (Chainlink feeds, Uniswap v4,
 BASE_RPC_URL=https://mainnet.base.org forge test --match-path "test/fork/*"
 ```
 
+## Static analysis
+
+The security review in [SECURITY.md](../docs/SECURITY.md) triages every result of these runs:
+
+```
+slither . --filter-paths "lib/|test/|script/" --exclude-dependencies   # Slither 0.11.6
+aderyn . --src src                                                     # Aderyn 0.6.8
+```
+
 ## Deployment
 
 `script/Deploy.s.sol` deploys and launches the whole protocol in one run. External addresses default to Base mainnet

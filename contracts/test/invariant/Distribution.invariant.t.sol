@@ -52,8 +52,8 @@ contract DistributionInvariantTest is Test {
             tenax, IWETH(address(weth)), escrow, ForecastRegistry(address(registry)), schedule, treasury
         );
         Treasury.Task[] memory tasks = new Treasury.Task[](2);
-        tasks[0] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0);
-        tasks[1] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0);
+        tasks[0] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0, 68);
+        tasks[1] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0, 36);
         treasury.initialize(rewards, tasks);
 
         address[] memory actors = new address[](8);
