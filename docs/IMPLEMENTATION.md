@@ -65,6 +65,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 │   │   ├── interfaces/ISeasonTreasury.sol
 │   │   ├── interfaces/IPriceObserver.sol
 │   │   ├── governance/TenaxGovernor.sol
+│   │   ├── governance/TenaxTimelock.sol
 │   │   └── hooks/LaunchFeeHook.sol
 │   ├── test/ (unit/ fuzz/ invariant/ fork/)
 │   ├── script/ (Deploy.s.sol, LaunchPool.s.sol)
@@ -81,12 +82,12 @@ Each phase is developed on its own branch and is only complete when its tests pa
 
 ## 4. Deployment
 
-1. Safe (existing) and `TimelockController`.
+1. Safe (existing) and `TenaxTimelock`, with the deployer as temporary admin.
 2. `TenaxToken`, minting the supply to the script address.
 3. `VotingEscrow`, `OracleAdapter`, `ForecastRegistry`, `Treasury`, `SeasonRewards`, `FeeDistributor`, `RevenueRouter`, `LiquidityVault`, `MerkleAirdrop` (closed), `CreatorVesting`, `TenaxGovernor`.
 4. Authorize `SeasonRewards`, `MerkleAirdrop` and `Treasury` on `createLockFor`, and initialize the `Treasury` with `SeasonRewards` and the keeper task list.
 5. Transfer allocations according to the tokenomics.
-6. Configure Timelock roles and renounce the deployer's admin role.
+6. Configure the timelock roles (the governor proposes and cancels, the Safe cancels, anyone executes) and renounce the deployer's admin role.
 7. Mine the salt and deploy `LaunchFeeHook`.
 8. Create the pool and the single-sided TENAX position in a single transaction, with the position NFT minted straight to the `LiquidityVault`; then register the position in the vault and the pool and its hook in the `Treasury`.
 9. Open the airdrop claim.
@@ -179,3 +180,6 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 40 | Buyback price guard | Reverts unless the spot tick is at most 198 ticks (about 2%) above the 30-minute average and strictly above the swap limit 198 ticks below it; unspent ETH is wrapped back |
 | 41 | Buyback cap | 0.05 ETH per call initially, bounds 0.001 to 10 ETH |
 | 42 | Fee collection | The vault distributes collected ETH through the router in the same call; `collectFees` and `buyback` are daily keeper tasks |
+| 43 | Safe role | Guardian only: cancels any proposal, queued ones included, but never proposes; governance can replace or remove it |
+| 44 | Governance bounds | Voting delay 1 h to 7 d, voting period 1 to 14 d, threshold 10k to 1M veTENAX, quorum 4% to 30%, timelock delay 1 to 14 d |
+| 45 | Timelock roles | The governor proposes and cancels, the Safe cancels, anyone executes; the timelock is its own admin after the deployer renounces |
