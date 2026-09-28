@@ -2,7 +2,7 @@
 
 A self-sustaining, fully on-chain forecasting network on Base, with a token whose value comes from scarcity.
 
-> **Status:** design phase. The whitepaper is a draft under review and no contracts have been written or deployed.
+> **Status:** in development. Contracts are being built phase by phase in [contracts/](contracts/), the whitepaper is a draft under review, and nothing has been deployed.
 
 ## What it is
 
