@@ -120,14 +120,14 @@ Each phase is developed on its own branch and is only complete when its tests pa
 - [ ] Airdrop opened only after the pool
 - [ ] README with addresses, allocations, wallets and the creator's lock and sell policy
 - [ ] Scanner checks (GoPlus, Token Sniffer)
-- [ ] Front-end published on GitHub Pages and mirrored on IPFS (optionally under a custom domain)
+- [ ] Front-end published on GitHub Pages under its own domain and mirrored on IPFS
 - [ ] Posts on X and LinkedIn focused on the engineering, never on price
 
 ---
 
 ## 6. Front-end (dApp)
 
-**Stack:** Vite + React + TypeScript + wagmi + viem, static build with no server. Published on GitHub Pages at `https://tenax-protocol.github.io/Tenax-Protocol/` by the `frontend` workflow, which also refreshes the leaderboard snapshot every hour; mirrored on IPFS before mainnet. Phase 10a covers buying, locking, forecasting, rounds, the leaderboard and rewards; the other pages are phase 10b.
+**Stack:** Vite + React + TypeScript + wagmi + viem, static build with no server. Published on GitHub Pages at `https://tenax.brmz.com.br` by the `frontend` workflow, which also refreshes the leaderboard snapshot every hour; mirrored on IPFS before mainnet. Phase 10a covers buying, locking, forecasting, rounds, the leaderboard and rewards; the other pages are phase 10b.
 
 - Connect wallet (Base): browser extension wallets and Coinbase Wallet
 - **Buy:** swap ETH for TENAX in the protocol's pool, with a quote, the current launch fee and a slippage limit
@@ -206,7 +206,7 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 57 | Testnet oracle | Base Sepolia has no sequencer uptime feed, so the check is disabled there; the Chainlink BTC/USD and ETH/USD feeds update about as often as on mainnet |
 | 58 | Keeper gas | Keeper transactions estimate gas at their real fees, plus a margin: at a zero gas price the treasury skips the refund and the estimate comes out too low |
 | 59 | Airdrop tree | Built with viem in the OpenZeppelin encoding, without a Merkle library; a Solidity test claims a fixture tree against `MerkleAirdrop` |
-| 60 | dApp hosting | GitHub Pages, deployed by a workflow at the repository's default address; hash routing, so every page works on a static host; an IPFS mirror before mainnet |
+| 60 | dApp hosting | GitHub Pages, deployed by a workflow, under the custom domain `tenax.brmz.com.br`: wallets' phishing scanners distrust new sites on shared `github.io` subdomains; hash routing, so every page works on a static host; an IPFS mirror before mainnet |
 | 61 | Buying TENAX | Uniswap's Universal Router (`V4_SWAP` with an exact-input single swap, settle all and take all), priced by the `V4Quoter`, 1% slippage |
 | 62 | Forecast salts | Derived from one wallet signature and the round, never stored; at reveal the forecast is recovered by trying every value from 0 to 10,000 against the commitment on chain; the derived key is also kept in the browser, for wallets whose signatures are not deterministic |
 | 63 | Lock suggestion | The dApp suggests enough TENAX to keep 5,000 veTENAX for 60 days, because veTENAX decays and a lock with exactly the minimum falls below it within hours |

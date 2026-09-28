@@ -4,10 +4,10 @@ import { defineConfig } from "vite";
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
-// GitHub Pages serves the site from /<repository>/, and so does the preview of a build; the dev server serves it
-// from the root.
-export default defineConfig(({ command, isPreview }) => ({
-  base: command === "build" || isPreview ? "/Tenax-Protocol/" : "/",
+// Relative asset paths: with hash routing every page is index.html, so the same build works at the root of
+// tenax.brmz.com.br and under the repository's github.io path.
+export default defineConfig({
+  base: "./",
   plugins: [react()],
   // viem and the wallet connectors make up most of the bundle, about 200 kB compressed.
   build: { chunkSizeWarningLimit: 1000 },
@@ -18,4 +18,4 @@ export default defineConfig(({ command, isPreview }) => ({
     },
   },
   server: { fs: { allow: [here("..")] } },
-}));
+});
