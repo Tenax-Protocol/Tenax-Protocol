@@ -2,9 +2,11 @@
 pragma solidity 0.8.26;
 
 import {EmissionSchedule} from "../../src/distribution/EmissionSchedule.sol";
-import {IWETH, SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
+import {SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
 import {IBurnableERC20, VotingEscrow} from "../../src/escrow/VotingEscrow.sol";
 import {ForecastRegistry} from "../../src/forecast/ForecastRegistry.sol";
+import {ISeasonTreasury} from "../../src/interfaces/ISeasonTreasury.sol";
+import {IWETH} from "../../src/interfaces/IWETH.sol";
 import {TenaxToken} from "../../src/token/TenaxToken.sol";
 import {SeasonRewardsTestBase} from "../utils/SeasonRewardsTestBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -120,6 +122,8 @@ contract SeasonRewardsTest is SeasonRewardsTestBase {
         assertEq(rewards.emissionsAssigned(), s.tenaxBudget);
         assertEq(rewards.nextSeasonToClose(), 1);
         assertEq(rewards.ethReceived(1), 0.5 ether);
+        assertEq(seasonTreasury.settledSeasons(), 1);
+        assertTrue(seasonTreasury.lastHadParticipants());
     }
 
     function test_RevertWhen_closingEarlyOrOutOfOrder() public {
@@ -149,6 +153,7 @@ contract SeasonRewardsTest is SeasonRewardsTestBase {
         assertEq(rewards.seasonInfo(0).ethBudget, 0);
         assertEq(rewards.tenaxCarry(), schedule.emittedUntil(L1_START + EPOCH / 10));
         assertEq(rewards.ethCarry(), 1 ether);
+        assertFalse(seasonTreasury.lastHadParticipants());
 
         _openRegistration(1);
         _register(alice, 1);
@@ -326,20 +331,23 @@ contract SeasonRewardsTest is SeasonRewardsTestBase {
 
     function test_RevertWhen_constructorArgumentsAreInvalid() public {
         IWETH w = IWETH(address(weth));
+        ISeasonTreasury st = seasonTreasury;
         vm.expectRevert(SeasonRewards.ZeroAddress.selector);
-        new SeasonRewards(IERC20(address(0)), w, escrow, registry, schedule);
+        new SeasonRewards(IERC20(address(0)), w, escrow, registry, schedule, st);
         vm.expectRevert(SeasonRewards.ZeroAddress.selector);
-        new SeasonRewards(tenax, IWETH(address(0)), escrow, registry, schedule);
+        new SeasonRewards(tenax, IWETH(address(0)), escrow, registry, schedule, st);
         vm.expectRevert(SeasonRewards.ZeroAddress.selector);
-        new SeasonRewards(tenax, w, VotingEscrow(address(0)), registry, schedule);
+        new SeasonRewards(tenax, w, VotingEscrow(address(0)), registry, schedule, st);
         vm.expectRevert(SeasonRewards.ZeroAddress.selector);
-        new SeasonRewards(tenax, w, escrow, ForecastRegistry(address(0)), schedule);
+        new SeasonRewards(tenax, w, escrow, ForecastRegistry(address(0)), schedule, st);
         vm.expectRevert(SeasonRewards.ZeroAddress.selector);
-        new SeasonRewards(tenax, w, escrow, registry, EmissionSchedule(address(0)));
+        new SeasonRewards(tenax, w, escrow, registry, EmissionSchedule(address(0)), st);
+        vm.expectRevert(SeasonRewards.ZeroAddress.selector);
+        new SeasonRewards(tenax, w, escrow, registry, schedule, ISeasonTreasury(address(0)));
 
         TenaxToken other = new TenaxToken(address(this));
         VotingEscrow otherEscrow = new VotingEscrow(IBurnableERC20(address(other)));
         vm.expectRevert(SeasonRewards.TokenMismatch.selector);
-        new SeasonRewards(tenax, w, otherEscrow, registry, schedule);
+        new SeasonRewards(tenax, w, otherEscrow, registry, schedule, st);
     }
 }

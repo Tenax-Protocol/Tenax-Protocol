@@ -2,10 +2,12 @@
 pragma solidity 0.8.26;
 
 import {EmissionSchedule} from "../../src/distribution/EmissionSchedule.sol";
-import {IWETH, SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
+import {SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
 import {IBurnableERC20, VotingEscrow} from "../../src/escrow/VotingEscrow.sol";
+import {IWETH} from "../../src/interfaces/IWETH.sol";
 import {TenaxToken} from "../../src/token/TenaxToken.sol";
 import {MockL1Block} from "../mocks/MockL1Block.sol";
+import {MockSeasonTreasury} from "../mocks/MockSeasonTreasury.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
 import {ForecastTestBase} from "./ForecastTestBase.sol";
 
@@ -28,6 +30,7 @@ abstract contract SeasonRewardsTestBase is ForecastTestBase {
     EmissionSchedule internal schedule;
     MockL1Block internal l1;
     MockWETH internal weth;
+    MockSeasonTreasury internal seasonTreasury;
     SeasonRewards internal rewards;
 
     address internal carol = makeAddr("carol");
@@ -44,7 +47,8 @@ abstract contract SeasonRewardsTestBase is ForecastTestBase {
         escrow = new VotingEscrow(IBurnableERC20(address(tenax)));
         schedule = new EmissionSchedule(L1_START);
         weth = new MockWETH();
-        rewards = new SeasonRewards(tenax, IWETH(address(weth)), escrow, registry, schedule);
+        seasonTreasury = new MockSeasonTreasury();
+        rewards = new SeasonRewards(tenax, IWETH(address(weth)), escrow, registry, schedule, seasonTreasury);
 
         address[] memory distributors = new address[](1);
         distributors[0] = address(rewards);

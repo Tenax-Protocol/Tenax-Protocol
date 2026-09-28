@@ -3,6 +3,8 @@ pragma solidity 0.8.26;
 
 import {VotingEscrow} from "../escrow/VotingEscrow.sol";
 import {ForecastRegistry} from "../forecast/ForecastRegistry.sol";
+import {ISeasonTreasury} from "../interfaces/ISeasonTreasury.sol";
+import {IWETH} from "../interfaces/IWETH.sol";
 import {EmissionSchedule} from "./EmissionSchedule.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -10,22 +12,18 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-/// @notice Wrapped ether, used to receive revenue and to pay it out as native ETH on request.
-interface IWETH is IERC20 {
-    function withdraw(uint256 amount) external;
-}
-
 /// @title SeasonRewards
 /// @notice Pays forecasters with statistically significant skill at the end of each 30-day season, in ETH from
-/// revenue and in TENAX from emissions, always locked (whitepaper section 5.6).
+/// revenue and in TENAX from emissions and the treasury top-up, always locked (whitepaper sections 5.6 and 7.2).
 /// @dev A season goes through three steps, all permissionless and without loops over participants:
 ///
 /// 1. Registration. Once every round of the season is resolved and its reveal window has closed, anyone can
 ///    register an eligible participant for a fixed period. Registration settles the participant's pending scores in
 ///    the registry, so the contribution it records is final.
 /// 2. Closing. After the registration period, the season's budget is fixed: TENAX emissions accrued since the
-///    previous closing plus the ETH received while the season ran, plus whatever earlier seasons carried over. With
-///    no registered participant, the whole budget carries over to the next season.
+///    previous closing plus the ETH received while the season ran, plus whatever earlier seasons carried over, plus
+///    the treasury's top-up for the season. With no registered participant, emissions and ETH carry over to the
+///    next season and the treasury burns the top-up instead.
 /// 3. Claim. Each registered participant claims `budget * contribution / total registered`. ETH is paid liquid
 ///    (as WETH or native ETH); TENAX is always delivered into a lock of at least 52 weeks through the vote escrow.
 ///
@@ -60,6 +58,7 @@ contract SeasonRewards is ReentrancyGuardTransient {
     VotingEscrow public immutable escrow;
     ForecastRegistry public immutable registry;
     EmissionSchedule public immutable schedule;
+    ISeasonTreasury public immutable treasury;
 
     /// @notice Opening time of the registry's first round and season.
     uint256 public immutable genesis;
@@ -80,6 +79,9 @@ contract SeasonRewards is ReentrancyGuardTransient {
     uint256 public tenaxCarry;
     uint256 public ethCarry;
 
+    /// @notice Cumulative TENAX received from the treasury as season top-ups.
+    uint256 public topUpsReceived;
+
     /// @notice ETH (as WETH) received while each season was running.
     mapping(uint256 season => uint256 amount) public ethReceived;
 
@@ -88,7 +90,9 @@ contract SeasonRewards is ReentrancyGuardTransient {
 
     event EthDeposited(address indexed from, uint256 indexed season, uint256 amount);
     event Registered(address indexed participant, uint256 indexed season, uint256 contribution);
-    event SeasonClosed(uint256 indexed season, uint256 tenaxBudget, uint256 ethBudget, uint256 totalContribution);
+    event SeasonClosed(
+        uint256 indexed season, uint256 tenaxBudget, uint256 ethBudget, uint256 topUp, uint256 totalContribution
+    );
     event Claimed(address indexed participant, uint256 indexed season, uint256 tenax, uint256 eth, bool asEth);
 
     error ZeroAddress();
@@ -111,11 +115,13 @@ contract SeasonRewards is ReentrancyGuardTransient {
         IWETH weth_,
         VotingEscrow escrow_,
         ForecastRegistry registry_,
-        EmissionSchedule schedule_
+        EmissionSchedule schedule_,
+        ISeasonTreasury treasury_
     ) {
         if (
             address(token_) == address(0) || address(weth_) == address(0) || address(escrow_) == address(0)
                 || address(registry_) == address(0) || address(schedule_) == address(0)
+                || address(treasury_) == address(0)
         ) revert ZeroAddress();
         if (address(escrow_.token()) != address(token_)) revert TokenMismatch();
         token = token_;
@@ -123,6 +129,7 @@ contract SeasonRewards is ReentrancyGuardTransient {
         escrow = escrow_;
         registry = registry_;
         schedule = schedule_;
+        treasury = treasury_;
         genesis = registry_.genesis();
         seasonLength = registry_.SEASON_LENGTH();
         roundInterval = registry_.ROUND_INTERVAL();
@@ -192,16 +199,26 @@ contract SeasonRewards is ReentrancyGuardTransient {
 
         Season storage s = _seasons[season];
         s.closed = true;
-        if (s.totalContribution == 0) {
-            tenaxCarry = tenaxBudget;
-            ethCarry = ethBudget;
-        } else {
+        bool hasParticipants = s.totalContribution != 0;
+        if (hasParticipants) {
             tenaxCarry = 0;
             ethCarry = 0;
             s.tenaxBudget = tenaxBudget;
             s.ethBudget = ethBudget;
+        } else {
+            tenaxCarry = tenaxBudget;
+            ethCarry = ethBudget;
         }
-        emit SeasonClosed(season, s.tenaxBudget, s.ethBudget, s.totalContribution);
+
+        // The treasury sends the top-up here before returning, or burns the whole allowance without participants.
+        uint256 topUp = treasury.settleSeason(season, ethReceived[season], hasParticipants);
+        if (topUp != 0) {
+            s.tenaxBudget += topUp;
+            topUpsReceived += topUp;
+        }
+        // The treasury is an immutable protocol contract that only calls the token back.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit SeasonClosed(season, s.tenaxBudget, s.ethBudget, topUp, s.totalContribution);
     }
 
     /// @notice Claims `season`'s reward: TENAX into a 52-week lock and ETH as WETH.

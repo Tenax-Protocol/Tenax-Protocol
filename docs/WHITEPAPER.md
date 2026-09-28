@@ -550,6 +550,8 @@ Every recurring task is permissionless and paid, and the treasury follows fixed 
 | Collect fees, distribute revenue, register forecasters, close seasons | Anyone | `Treasury` |
 | Front-end | Static hosting or IPFS | No cost |
 
+Keepers run tasks through the treasury's `execute` function, which accepts only the tasks on a list fixed at deployment (one contract and one function each), runs the call, measures its gas and pays for it. The same functions stay open to anyone who calls them directly, without payment. Only tasks that can succeed a bounded number of times are on the list: each round is resolved, voided or finalized once, each eligible forecaster is registered once per season, and revenue is distributed at most once a day.
+
 Keepers are refunded their gas plus a 50% margin, in WETH:
 
 ```math
@@ -560,9 +562,9 @@ Keepers are refunded their gas plus a 50% margin, in WETH:
 \text{reward} = \min\big((\text{gasUsed} \cdot \text{gasPrice} + \text{l1Cost}) \cdot 1.5,\ \ \text{capPerCall}\big)
 ```
 
-Capping the gas price at the base fee plus a maximum tip is essential: without it, a keeper could pay an inflated tip to the sequencer and receive 1.5 times that amount back, draining the budget. The L1 data cost is estimated with the OP Stack `GasPriceOracle` predeploy [11] (`getL1FeeUpperBound`). Each task also has a minimum interval, and the budget has a monthly maximum, all within hard limits.
+Capping the gas price at the base fee plus a maximum tip is essential: without it, a keeper could pay an inflated tip to the sequencer and receive 1.5 times that amount back, draining the budget. The L1 data cost is estimated with the OP Stack `GasPriceOracle` predeploy [11] (`getL1FeeUpperBound`). Each task also has a minimum interval, and the budget has a monthly maximum, all within hard limits. The initial values are a maximum tip of 0.01 gwei, 0.0005 ETH per call and 0.02 ETH per 30 days; once the monthly budget is spent, tasks still run but are not paid until the next period.
 
-When the ETH reserve is not enough, as before the pool produces revenue, keepers are paid a fixed amount of locked TENAX from the TENAX reserve allowance (section 7.2), set by governance within bounds. The protocol has no TENAX price oracle and never uses the pool price to value anything.
+When the ETH reserve is not enough, as before the pool produces revenue, keepers are paid a fixed amount of TENAX from the allowance of the season in progress (section 7.2), locked for 52 weeks: initially 250 TENAX per task, set by governance within bounds. The protocol has no TENAX price oracle and never uses the pool price to value anything.
 
 ### 7.2 Treasury
 
@@ -583,7 +585,7 @@ The treasury is the `Treasury` contract. It is not controlled by governance: eve
 
 where $C_s$ is what remains of the allowance after keepers, $\text{ETH}_s$ is the ETH received for the season and $T_{\text{ETH}}$ is a revenue target set by governance within bounds, with an initial value of 0.07 ETH per season, about 0.07% of the launch FDV (section 6.7). With little revenue, almost the entire allowance tops up rewards; once revenue reaches the target, the top-up drops to zero.
 
-Whatever remains of the allowance when the season closes is burned, including the top-up when no participant is eligible. The reserve never accumulates: it is either used during the season or it ceases to exist.
+The allowance is settled when `SeasonRewards` closes the season, about 15 days after it ends: the top-up goes to the season budget and whatever remains is burned, including the top-up when no participant is registered. The reserve never accumulates: it is either used during the season or it ceases to exist.
 
 ---
 
@@ -749,7 +751,7 @@ Tenax combines three ideas that reinforce each other. A strictly proper scoring 
 | Keeper ETH reserve | 90 days of the maximum budget | No |
 | Buyback | At most every 24 h, capped per call, max 2% deviation from the 30-min TWAP | Cap within bounds |
 | Revenue target $T_{\text{ETH}}$ | 0.07 ETH per season | Within bounds |
-| Keeper reward | Gas × 1.5, capped | Caps within bounds |
+| Keeper reward | Gas × 1.5, capped at 0.0005 ETH per call and 0.02 ETH per 30 days; 250 locked TENAX when there is no WETH | Caps within bounds |
 | Emission epoch | 2,628,000 L1 blocks | No |
 | Emission reductions | −50%, −40%, −30%, −20%, then −15% | No |
 | Governance | 1 d delay, 5 d vote, 10% quorum, 100k threshold, 2 d timelock | Through governance |

@@ -3,9 +3,11 @@ pragma solidity 0.8.26;
 
 import {EmissionSchedule} from "../../src/distribution/EmissionSchedule.sol";
 import {MerkleAirdrop} from "../../src/distribution/MerkleAirdrop.sol";
-import {IWETH, SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
+import {SeasonRewards} from "../../src/distribution/SeasonRewards.sol";
 import {IBurnableERC20, VotingEscrow} from "../../src/escrow/VotingEscrow.sol";
 import {ForecastRegistry} from "../../src/forecast/ForecastRegistry.sol";
+import {IWETH} from "../../src/interfaces/IWETH.sol";
+import {Treasury} from "../../src/revenue/Treasury.sol";
 import {TenaxToken} from "../../src/token/TenaxToken.sol";
 import {MockL1Block} from "../mocks/MockL1Block.sol";
 import {MockSeasonRegistry} from "../mocks/MockSeasonRegistry.sol";
@@ -23,6 +25,7 @@ contract DistributionInvariantTest is Test {
     uint256 internal constant L1_START = 21_000_000;
     uint256 internal constant EMISSION_BUCKET = 35_000_000e18;
     uint256 internal constant AIRDROP_BUCKET = 10_000_000e18;
+    uint256 internal constant RESERVE = 20_000_000e18;
 
     TenaxToken internal tenax;
     VotingEscrow internal escrow;
@@ -30,6 +33,8 @@ contract DistributionInvariantTest is Test {
     MockWETH internal weth;
     MockSeasonRegistry internal registry;
     SeasonRewards internal rewards;
+    Treasury internal treasury;
+    address internal keeper = makeAddr("keeper");
     MerkleAirdrop internal airdrop;
     DistributionHandler internal handler;
 
@@ -42,7 +47,14 @@ contract DistributionInvariantTest is Test {
         weth = new MockWETH();
         registry = new MockSeasonRegistry(GENESIS);
         registry.setNextRoundToResolve(type(uint256).max);
-        rewards = new SeasonRewards(tenax, IWETH(address(weth)), escrow, ForecastRegistry(address(registry)), schedule);
+        treasury = new Treasury(IBurnableERC20(address(tenax)), IWETH(address(weth)), escrow, makeAddr("governance"));
+        rewards = new SeasonRewards(
+            tenax, IWETH(address(weth)), escrow, ForecastRegistry(address(registry)), schedule, treasury
+        );
+        Treasury.Task[] memory tasks = new Treasury.Task[](2);
+        tasks[0] = Treasury.Task(address(rewards), SeasonRewards.register.selector, 0);
+        tasks[1] = Treasury.Task(address(rewards), SeasonRewards.closeSeason.selector, 0);
+        treasury.initialize(rewards, tasks);
 
         address[] memory actors = new address[](8);
         uint256[] memory amounts = new uint256[](8);
@@ -55,11 +67,13 @@ contract DistributionInvariantTest is Test {
         address launcher = makeAddr("launcher");
         airdrop = new MerkleAirdrop(IBurnableERC20(address(tenax)), escrow, MerkleHelper.root(leaves), launcher);
 
-        address[] memory distributors = new address[](2);
+        address[] memory distributors = new address[](3);
         distributors[0] = address(rewards);
         distributors[1] = address(airdrop);
+        distributors[2] = address(treasury);
         escrow.initializeDistributors(distributors);
         tenax.transfer(address(rewards), EMISSION_BUCKET);
+        tenax.transfer(address(treasury), RESERVE);
         tenax.transfer(address(airdrop), AIRDROP_BUCKET);
         vm.prank(launcher);
         airdrop.open();
@@ -71,7 +85,8 @@ contract DistributionInvariantTest is Test {
         weth.approve(address(rewards), type(uint256).max);
         vm.stopPrank();
 
-        handler = new DistributionHandler(rewards, airdrop, registry, l1, weth, depositor, actors, amounts);
+        handler =
+            new DistributionHandler(rewards, treasury, keeper, airdrop, registry, l1, weth, depositor, actors, amounts);
         targetContract(address(handler));
     }
 
@@ -81,16 +96,17 @@ contract DistributionInvariantTest is Test {
     function invariant_emissionNeverExceedsTheSchedule() public view {
         assertLe(rewards.emissionsAssigned(), schedule.emitted());
         assertLe(schedule.emitted(), EMISSION_BUCKET);
-        assertLe(handler.ghostRewardsDelivered(), rewards.emissionsAssigned());
+        assertLe(handler.ghostRewardsDelivered(), rewards.emissionsAssigned() + rewards.topUpsReceived());
     }
 
-    /// @dev Every assigned emission is either in a closed season's budget or carried to the next one.
-    function invariant_assignedEmissionIsConserved() public view {
+    /// @dev Every assigned emission and top-up is either in a closed season's budget or carried to the next one.
+    function invariant_seasonTenaxIsConserved() public view {
         uint256 sum = rewards.tenaxCarry();
         for (uint256 s; s < rewards.nextSeasonToClose(); ++s) {
             sum += rewards.seasonInfo(s).tenaxBudget;
         }
-        assertEq(sum, rewards.emissionsAssigned());
+        assertEq(sum, rewards.emissionsAssigned() + rewards.topUpsReceived());
+        assertEq(rewards.topUpsReceived(), treasury.totalTopUps());
     }
 
     function invariant_revenueIsConserved() public view {
@@ -113,7 +129,30 @@ contract DistributionInvariantTest is Test {
             assertLe(handler.ghostSeasonTenaxPaid(s), season.tenaxBudget);
             assertLe(handler.ghostSeasonEthPaid(s), season.ethBudget);
         }
-        assertEq(tenax.balanceOf(address(rewards)), EMISSION_BUCKET - handler.ghostRewardsDelivered());
+        assertEq(
+            tenax.balanceOf(address(rewards)),
+            EMISSION_BUCKET + rewards.topUpsReceived() - handler.ghostRewardsDelivered()
+        );
+    }
+
+    // --- treasury reserve --------------------------------------------------------
+
+    /// @dev Whitepaper invariant: TENAX used from the reserve plus TENAX burned from it never exceeds the
+    /// allowances released up to the current season, and a closed season's allowance is always fully settled.
+    function invariant_reserveNeverExceedsReleasedAllowances() public view {
+        uint256 spent = treasury.totalKeeperTenax() + treasury.totalTopUps() + treasury.totalBurned();
+        uint256 released;
+        for (uint256 s; s <= rewards.currentSeason(); ++s) {
+            released += treasury.allowanceOf(s);
+        }
+        assertLe(spent, released);
+        assertEq(tenax.balanceOf(address(treasury)), RESERVE - spent);
+
+        uint256 settled = treasury.nextSeasonToSettle();
+        assertEq(settled, rewards.nextSeasonToClose());
+        for (uint256 s; s < settled; ++s) {
+            assertEq(treasury.allowanceUsed(s), treasury.allowanceOf(s), "closed season fully settled");
+        }
     }
 
     // --- airdrop -----------------------------------------------------------------
@@ -124,26 +163,29 @@ contract DistributionInvariantTest is Test {
             tenax.balanceOf(address(airdrop)) + handler.ghostAirdropDelivered() + handler.ghostAirdropBurned(),
             AIRDROP_BUCKET
         );
-        assertEq(tenax.totalSupply(), tenax.INITIAL_SUPPLY() - handler.ghostAirdropBurned());
+        assertEq(tenax.totalSupply(), tenax.INITIAL_SUPPLY() - handler.ghostAirdropBurned() - treasury.totalBurned());
     }
 
     // --- nothing is liquid -------------------------------------------------------
 
-    /// @dev Whitepaper invariant: no emission or airdrop token is ever liquid. Every delivery is a granted lock
-    /// of at least the required duration, and actors only hold TENAX they withdrew from expired locks.
+    /// @dev Whitepaper invariant: no emission, airdrop or keeper TENAX is ever liquid. Every delivery is a granted
+    /// lock of at least the required duration, and actors only hold TENAX they withdrew from expired locks.
     function invariant_nothingIsDeliveredLiquid() public view {
         assertFalse(handler.ghostShortLock());
         uint256 locked;
         uint256 withdrawn;
-        for (uint256 i; i < handler.actorCount(); ++i) {
-            address actor = handler.actors(i);
+        for (uint256 i; i <= handler.actorCount(); ++i) {
+            address actor = i < handler.actorCount() ? handler.actors(i) : keeper;
             (uint256 amount, uint256 granted,) = escrow.locked(actor);
             assertEq(granted, amount, "every locked token was delivered");
             assertEq(tenax.balanceOf(actor), handler.ghostWithdrawn(actor), "only expired locks are liquid");
             locked += amount;
             withdrawn += handler.ghostWithdrawn(actor);
         }
-        assertEq(locked + withdrawn, handler.ghostRewardsDelivered() + handler.ghostAirdropDelivered());
+        assertEq(
+            locked + withdrawn,
+            handler.ghostRewardsDelivered() + handler.ghostAirdropDelivered() + treasury.totalKeeperTenax()
+        );
         assertEq(escrow.supply(), locked);
     }
 
@@ -163,5 +205,8 @@ contract DistributionInvariantTest is Test {
             console.log(operations[i], handler.executed(operations[i]));
         }
         console.log("seasons closed", rewards.nextSeasonToClose());
+        console.log("keeper TENAX", treasury.totalKeeperTenax() / 1e18);
+        console.log("top-ups", treasury.totalTopUps() / 1e18);
+        console.log("reserve burned", treasury.totalBurned() / 1e18);
     }
 }
