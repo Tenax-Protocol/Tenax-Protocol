@@ -60,6 +60,12 @@ anvil --fork-url https://mainnet.base.org --chain-id 31337
 forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key <anvil key>
 ```
 
+Base Sepolia, with a key imported through `cast wallet import`:
+
+```
+forge script script/Deploy.s.sol --rpc-url https://sepolia.base.org --account <name> --broadcast --slow
+```
+
 ## Layout
 
 ```
