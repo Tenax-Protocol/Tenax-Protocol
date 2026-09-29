@@ -12,7 +12,6 @@
     "allowImportingTsExtensions": false,
     "noEmit": true,
     "types": ["node", "vite/client"],
-    "baseUrl": ".",
     "paths": {
       "@abi": ["../offchain/src/abi/index.ts"],
       "@deployments/*": ["../deployments/*"]
