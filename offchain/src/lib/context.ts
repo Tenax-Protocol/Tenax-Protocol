@@ -69,6 +69,8 @@ export interface Context {
   account?: Account;
 }
 
+const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
+
 export async function createContext(options: { network: string; rpcUrl: string; privateKey?: Hex }): Promise<Context> {
   const deployment = loadDeployment(options.network);
   const chain = defineChain({
@@ -76,6 +78,8 @@ export async function createContext(options: { network: string; rpcUrl: string; 
     name: options.network,
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [options.rpcUrl] } },
+    // Multicall3 has the same address on every EVM chain, including Base, Base Sepolia and forks of them.
+    contracts: { multicall3: { address: MULTICALL3 } },
   });
   const transport = http(options.rpcUrl);
   const publicClient = createPublicClient({ chain, transport }) as PublicClient;

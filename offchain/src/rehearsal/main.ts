@@ -30,12 +30,14 @@ import {
 import { buildAirdrop } from "../airdrop/build.js";
 import { Keeper } from "../keeper/keeper.js";
 import { createContext, type Deployment, deploymentPath, loadDeployment, log, repoRoot } from "../lib/context.js";
+import { buildSnapshot } from "../site/snapshot.js";
 
 /**
  * Rehearses a full test season on a local fork of Base Sepolia, against the real Uniswap v4 deployment there:
  * deploys the protocol with the deployment script, has six participants buy TENAX in the pool and lock it, plays
  * the 30 daily rounds of season 0 on both assets with prices pushed to mock feeds, lets the real keeper resolve,
- * finalize, register, close and collect, has participants claim, and builds the airdrop tree from the season.
+ * finalize, register, close and collect, has participants claim, builds the airdrop tree from the season and takes
+ * the leaderboard snapshot.
  * Fails loudly if anything does not end as the design says it should.
  *
  * Needs Foundry (anvil, forge) and network access to a Base Sepolia RPC (SEPOLIA_RPC_URL, public by default).
@@ -452,6 +454,18 @@ async function main(): Promise<void> {
       `the airdrop goes to the skilled forecasters only, root ${tree.root}`,
     );
     check(BigInt(tree.total) <= BigInt(tree.budget), "the airdrop never exceeds 10M TENAX");
+
+    const snapshot = await buildSnapshot(ctx);
+    const contributors = snapshot.participants
+      .filter((p) => BigInt(p.seasons[0]?.contribution ?? "0") > 0n)
+      .map((p) => p.account.toLowerCase());
+    check(
+      snapshot.participants.length === participants.length &&
+        snapshot.participants.every((p) => (p.seasons[0]?.rounds ?? 0) > 0) &&
+        contributors.length === skilled.length &&
+        skilled.every((a) => contributors.includes(a)),
+      `the leaderboard snapshot lists all ${participants.length} participants, with contributions for the skilled only`,
+    );
     log("rehearsal complete");
   } finally {
     anvil.kill();
