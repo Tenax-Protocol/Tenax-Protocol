@@ -44,6 +44,6 @@ The list of participants comes from the registry's `Committed` events, queried i
 2. has six participants buy TENAX in the pool and lock it: two skilled forecasters, two that always answer the base rate and two random ones;
 3. plays the 30 daily rounds of season 0 on both assets, with the real keeper resolving, finalizing, collecting fees and buying back;
 4. moves through the registration period, lets the keeper register and close the season, and has participants claim;
-5. builds the airdrop tree from the season;
+5. builds the airdrop tree from the season and takes the leaderboard snapshot;
 
-and checks that every round resolved with the expected outcome, that only the skilled forecasters were registered, claimed rewards and received the airdrop, and that the airdrop stays within its budget. Needs Foundry (`anvil`, `forge`) and access to a Base Sepolia RPC (`SEPOLIA_RPC_URL`, the public endpoint by default).
+and checks that every round resolved with the expected outcome, that only the skilled forecasters were registered, claimed rewards and received the airdrop, that the airdrop stays within its budget, and that the snapshot lists every participant with contributions for the skilled only. Needs Foundry (`anvil`, `forge`) and access to a Base Sepolia RPC (`SEPOLIA_RPC_URL`, the public endpoint by default).
