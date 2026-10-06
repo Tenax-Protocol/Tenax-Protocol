@@ -24,7 +24,7 @@ npm test
 
 Environment: `RPC_URL` and `KEEPER_PRIVATE_KEY`. On GitHub, the `keeper` workflow runs a pass every 10 minutes once the repository variable `KEEPER_ENABLED` is `true` and the secrets `BASE_SEPOLIA_RPC_URL` and `KEEPER_PRIVATE_KEY` are set. Use a key that only ever holds testnet funds.
 
-The list of participants comes from the registry's `Committed` events, queried in chunks of 1,000 blocks (the most the public Base endpoints accept; set `LOG_CHUNK` for a dedicated RPC). The accounts found and the next block to scan are cached in `offchain/.cache/<network>-participants.json`, so each run only queries new blocks; the workflows carry the cache between runs.
+The list of participants comes from the registry's `Committed` events, queried in chunks of 1,000 blocks (the most the public Base endpoints accept; set `LOG_CHUNK` for a dedicated RPC that takes more). A provider that takes less rejects the query, and the scan retries it with half the range. The accounts found and the next block to scan are cached in `offchain/.cache/<network>-participants.json`, so each run only queries new blocks; the workflows carry the cache between runs.
 
 ## Airdrop
 

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type Address, parseAbiItem } from "viem";
 import { type Context, repoRoot } from "./context.js";
+import { scanRanges } from "./logs.js";
 
 const committedEvent = parseAbiItem(
   "event Committed(uint256 indexed asset, uint256 indexed round, address indexed participant, uint256 weight)",
@@ -9,7 +10,7 @@ const committedEvent = parseAbiItem(
 
 /**
  * Blocks per log query. The public Base endpoints accept at most 1,000; a dedicated RPC can take more
- * (LOG_CHUNK in the environment).
+ * (LOG_CHUNK in the environment), and one that takes less makes the scan halve it (see `scanRanges`).
  */
 const LOG_CHUNK = BigInt(process.env.LOG_CHUNK ?? 1_000);
 
@@ -43,11 +44,10 @@ export async function participants(ctx: Context): Promise<Address[]> {
   }
 
   const seen = new Set<Address>(cache.accounts);
-  for (let from = BigInt(cache.nextBlock); from <= latest; from += LOG_CHUNK) {
-    const to = from + LOG_CHUNK - 1n < latest ? from + LOG_CHUNK - 1n : latest;
-    const logs = await ctx.publicClient.getLogs({ address: registry, event: committedEvent, fromBlock: from, toBlock: to });
-    for (const entry of logs) if (entry.args.participant) seen.add(entry.args.participant);
-  }
+  const logs = await scanRanges(BigInt(cache.nextBlock), latest, LOG_CHUNK, (fromBlock, toBlock) =>
+    ctx.publicClient.getLogs({ address: registry, event: committedEvent, fromBlock, toBlock }),
+  );
+  for (const entry of logs) if (entry.args.participant) seen.add(entry.args.participant);
 
   const accounts = [...seen].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
   const saved: Cache = { registry, deployBlock, nextBlock: (latest + 1n).toString(), accounts };
