@@ -100,8 +100,9 @@ contract LiquidityVaultTest is LiquidityScenarios {
         new LiquidityVault(positionManager, t, IWETH(address(0)), router);
         vm.expectRevert(LiquidityVault.ZeroAddress.selector);
         new LiquidityVault(positionManager, t, weth, RevenueRouter(address(0)));
+        IWETH otherWeth = IWETH(address(new MockWETH()));
         vm.expectRevert(LiquidityVault.TokenMismatch.selector);
-        new LiquidityVault(positionManager, t, IWETH(address(new MockWETH())), router);
+        new LiquidityVault(positionManager, t, otherWeth, router);
     }
 
     // --- treasury buyback --------------------------------------------------------
