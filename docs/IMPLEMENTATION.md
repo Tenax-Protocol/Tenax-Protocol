@@ -211,5 +211,5 @@ Each phase is developed on its own branch and is only complete when its tests pa
 | 62 | Forecast salts | Derived from one wallet signature and the round, never stored; at reveal the forecast is recovered by trying every value from 0 to 10,000 against the commitment on chain; the derived key is also kept in the browser, for wallets whose signatures are not deterministic |
 | 63 | Lock suggestion | The dApp suggests enough TENAX to keep 5,000 veTENAX for 60 days, because veTENAX decays and a lock with exactly the minimum falls below it within hours |
 | 64 | Leaderboard data | A static snapshot rebuilt every hour by the site workflow, because public RPCs limit log queries to 1,000 blocks and a browser cannot scan the registry's events |
-| 65 | Participant scan | Event queries in 1,000-block chunks, resumed from a cache shared by the keeper and site workflows |
+| 65 | Participant scan | Event queries in 1,000-block chunks, halved when the provider rejects the range, resumed from a cache shared by the keeper and site workflows |
 | 66 | Wallets | Browser extension wallets and Coinbase Wallet; no WalletConnect, which needs a project id from a third-party service |
